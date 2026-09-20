@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M5Atom Sensor Control Panel</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --series-1:       #2a78d6;
+    --series-1-fill:  rgba(42, 120, 214, 0.16);
+    --good:           #0ca30c;
+    --critical:       #d03b3b;
+    --warning:        #fab219;
+    --border:         rgba(11,11,11,0.10);
+    --card-shadow:    0 1px 2px rgba(11,11,11,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --series-1:       #3987e5;
+      --series-1-fill:  rgba(57, 135, 229, 0.20);
+      --good:           #0ca30c;
+      --critical:       #e66767;
+      --warning:        #fab219;
+      --border:         rgba(255,255,255,0.10);
+      --card-shadow:    0 1px 2px rgba(0,0,0,0.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body {
+    padding: 16px;
+    padding-bottom: 32px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  /* Some elements below (.device-id, .frozen-note) set display:flex as a
+     class rule, which ties in CSS specificity with the browser's default
+     [hidden]{display:none} rule and can win on source order alone. This
+     makes el.hidden = true/false always take effect regardless. */
+  [hidden] { display: none !important; }
+  h1 { font-size: 18px; margin: 0; }
+  h2 { font-size: 14px; margin: 0 0 12px 0; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--card-shadow);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  header.card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+  }
+  .device-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .device-id .name { font-weight: 600; }
+  .device-id .meta { font-size: 12px; color: var(--text-muted); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    background: var(--grid); color: var(--text-secondary);
+  }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+  .pill.connected .dot { background: var(--good); }
+  .pill.connected { color: var(--good); }
+  .pill.lost .dot, .pill.error .dot { background: var(--critical); }
+  .pill.lost, .pill.error { color: var(--critical); }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-1); color: var(--text-primary);
+    padding: 8px 14px;
+  }
+  button.primary { background: var(--series-1); color: #fff; border-color: transparent; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.small { padding: 4px 10px; font-size: 12px; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); }
+  select, input[type=number] {
+    font: inherit; padding: 6px 8px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Graph card */
+  #graphCanvas { width: 100%; height: 160px; display: block; border-radius: 6px; }
+  .graph-readout { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; flex-wrap: wrap; gap: 8px; }
+  .state-badge { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; }
+  .state-badge.pressed { color: var(--series-1); }
+  .state-badge.released { color: var(--text-muted); }
+  .stat-strip { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+  .stat-strip b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  #graphOverlay {
+    position: relative;
+  }
+  .frozen-note {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(128,128,128,0.15); border-radius: 6px; font-weight: 600; color: var(--text-secondary);
+    pointer-events: none;
+  }
+
+  /* LED card */
+  .hue-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 16px; border-radius: 999px; outline: none;
+    background: linear-gradient(to right,
+      hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%), hsl(90,100%,50%),
+      hsl(120,100%,50%), hsl(150,100%,50%), hsl(180,100%,50%), hsl(210,100%,50%),
+      hsl(240,100%,50%), hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%), hsl(360,100%,50%));
+  }
+  .hue-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; border: 2px solid #0006; cursor: pointer;
+  }
+  .hue-slider::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid #0006; cursor: pointer;
+  }
+  .brightness-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 12px; border-radius: 999px; outline: none;
+    background: linear-gradient(to right, #4443, var(--swatch-color, #888));
+  }
+  .brightness-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; border: 2px solid #0006; cursor: pointer;
+  }
+  .brightness-slider::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #0006; cursor: pointer;
+  }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .swatch {
+    width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border);
+    cursor: pointer; padding: 0;
+  }
+  .swatch.off { background: var(--surface-1) !important; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .led-preview-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  #ledPreview { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border); flex: none; }
+  #ledPreviewText { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+  /* Log card */
+  #log {
+    height: 160px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; background: var(--page); border-radius: 6px; padding: 8px; border: 1px solid var(--border);
+  }
+  #log div { white-space: pre-wrap; word-break: break-word; padding: 1px 0; }
+  #log div.err { color: var(--critical); }
+  #log div.warn { color: var(--warning); }
+  .log-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+  #topBanner {
+    background: var(--critical); color: #fff; padding: 10px 14px; border-radius: 8px;
+    margin-bottom: 16px; font-weight: 600;
+  }
+  .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div id="topBanner" hidden></div>
+
+<header class="card">
+  <div class="row" style="gap:12px;">
+    <h1>M5Atom Sensor Control Panel</h1>
+    <span id="statusPill" class="pill"><span class="dot"></span><span id="statusText">Not connected</span></span>
+  </div>
+  <div class="device-id" id="deviceId" hidden>
+    <span class="name" id="deviceName">—</span>
+    <span class="meta" id="deviceMeta">—</span>
+  </div>
+  <div class="row">
+    <label class="checkbox-row"><input type="checkbox" id="allPortsCheck"> Show all serial ports</label>
+    <button id="connectBtn" class="primary">Connect</button>
+    <button id="disconnectBtn" hidden>Disconnect</button>
+  </div>
+</header>
+
+<div class="card" id="graphCard">
+  <h2>Button (btn0)</h2>
+  <div id="graphOverlay">
+    <canvas id="graphCanvas"></canvas>
+    <div class="frozen-note" id="frozenNote" hidden>Disconnected — showing last known state</div>
+  </div>
+  <div class="graph-readout">
+    <span class="state-badge released" id="stateBadge">—</span>
+    <label class="field">Window
+      <select id="windowSelect">
+        <option value="5">5 s</option>
+        <option value="10" selected>10 s</option>
+        <option value="30">30 s</option>
+      </select>
+    </label>
+    <label class="field">Sample period
+      <select id="periodSelect">
+        <option value="1000">1000 µs (1 kHz)</option>
+        <option value="5000">5000 µs (200 Hz)</option>
+        <option value="10000" selected>10000 µs (100 Hz)</option>
+        <option value="50000">50000 µs (20 Hz)</option>
+        <option value="100000">100000 µs (10 Hz)</option>
+      </select>
+    </label>
+  </div>
+  <div class="stat-strip">
+    <span>samples <b id="statFrames">0</b></span>
+    <span>rate <b id="statRate">0</b>/s</span>
+    <span>drops <b id="statDrops">0</b></span>
+    <span>presses <b id="statPresses">0</b></span>
+  </div>
+  <div class="hint" id="modeHint">Only the periodic sample rate above affects what you see — the firmware's on-change mode is accepted but not implemented by the sampler yet.</div>
+</div>
+
+<div class="card" id="ledCard">
+  <h2>LED (led0)</h2>
+  <label class="field">Hue</label>
+  <input type="range" min="0" max="359" value="200" id="hueSlider" class="hue-slider">
+  <div class="swatches" id="swatchRow"></div>
+  <label class="field" style="margin-top:14px;">Brightness</label>
+  <input type="range" min="0" max="100" value="20" id="brightnessSlider" class="brightness-slider">
+  <div class="led-preview-row">
+    <div id="ledPreview"></div>
+    <span id="ledPreviewText">rgb(0,0,0) · #000000</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="log-head">
+    <h2 style="margin:0;">Activity</h2>
+    <label class="checkbox-row"><input type="checkbox" id="verboseCheck"> Verbose</label>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+ * S1: Constants
+ * ========================================================================= */
+const FRAME_KIND = { CMD: 0, OK: 1, ERR: 2, ROW: 3, DATA: 4 };
+const USB_VID = 0x303A;
+const USB_PID = 0x8001;
+const CMD_TIMEOUT_MS = 1000;
+const SET_MIN_GAP_MS = 25;
+const MAX_WIRE_FRAME = 512; // headroom above the documented 256-byte limit
+
+const ERROR_MEANING = {
+  ECRC: 'the frame failed its checksum',
+  EFRAME: 'the frame did not match the expected structure',
+  ECMD: 'the verb is not a known command',
+  EARG: 'an argument is missing or invalid',
+  ERANGE: 'a value is outside the range this channel or key accepts',
+  ESTATE: "the command does not apply to the device's current state",
+  EBUSY: 'the device cannot process this command right now',
+  EINTERNAL: 'the device found an internal fault',
+  EOVF: 'the frame was longer than the frame length limit',
+  ENOCH: 'the channel name is not known',
+  EACCESS: "the channel's access mode does not allow this",
+};
+
+/* =========================================================================
+ * S2: Wire codecs — COBS, CRC-16/CCITT-FALSE, and a small CBOR subset.
+ * See docs/04-cbor-encoding.md. Ported from the same algorithms verified
+ * against real hardware in the firmware (main/cobs.c, main/crc16.c).
+ * ========================================================================= */
+
+function cobsEncode(data) {
+  // data: Uint8Array. Returns a Uint8Array with no embedded 0x00 byte.
+  const out = new Uint8Array(data.length + Math.ceil((data.length + 1) / 254) + 1);
+  let inPos = 0, outPos = 1, codePos = 0, code = 1;
+  while (inPos < data.length) {
+    if (data[inPos] === 0) {
+      out[codePos] = code;
+      codePos = outPos++;
+      code = 1;
+      inPos++;
+    } else {
+      out[outPos++] = data[inPos++];
+      code++;
+      if (code === 0xFF) {
+        out[codePos] = code;
+        codePos = outPos++;
+        code = 1;
+      }
+    }
+  }
+  out[codePos] = code;
+  return out.slice(0, outPos);
+}
+
+function cobsDecode(data) {
+  const out = new Uint8Array(data.length);
+  let idx = 0, outPos = 0;
+  while (idx < data.length) {
+    const code = data[idx];
+    if (code === 0) throw new Error('COBS: zero code byte');
+    const chunkLen = code - 1;
+    if (idx + 1 + chunkLen > data.length) throw new Error('COBS: chunk runs past end');
+    out.set(data.subarray(idx + 1, idx + 1 + chunkLen), outPos);
+    outPos += chunkLen;
+    idx += code;
+    if (code < 0xFF && idx < data.length) {
+      out[outPos++] = 0;
+    }
+  }
+  return out.slice(0, outPos);
+}
+
+function crc16(bytes) {
+  // CRC-16/CCITT-FALSE: poly 0x1021, init 0xFFFF, no reflection, no final XOR.
+  let crc = 0xFFFF;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= bytes[i] << 8;
+    for (let b = 0; b < 8; b++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+    }
+  }
+  return crc;
+}
+
+// --- CBOR: only the subset this protocol actually uses -------------------
+// Encode: arrays, non-negative integers, booleans, text strings, byte
+// strings (Uint8Array). Decode: the same, plus null, for robustness.
+// Anything else throws a named error rather than failing silently.
+
+const CBOR = (() => {
+  function writeHeader(out, majorType, value) {
+    const top = majorType << 5;
+    if (value < 24) {
+      out.push(top | value);
+    } else if (value < 256) {
+      out.push(top | 24, value);
+    } else if (value < 65536) {
+      out.push(top | 25, (value >> 8) & 0xFF, value & 0xFF);
+    } else if (value < 4294967296) {
+      out.push(top | 26, (value >>> 24) & 0xFF, (value >>> 16) & 0xFF, (value >>> 8) & 0xFF, value & 0xFF);
+    } else {
+      // Only needed for decode in practice (t_us), but supported for encode too.
+      const high = Math.floor(value / 4294967296);
+      const low = value >>> 0;
+      out.push(top | 27,
+        (high >>> 24) & 0xFF, (high >>> 16) & 0xFF, (high >>> 8) & 0xFF, high & 0xFF,
+        (low >>> 24) & 0xFF, (low >>> 16) & 0xFF, (low >>> 8) & 0xFF, low & 0xFF);
+    }
+  }
+
+  function encodeValue(out, value) {
+    if (typeof value === 'boolean') {
+      out.push(value ? 0xF5 : 0xF4);
+    } else if (typeof value === 'number') {
+      if (value < 0 || !Number.isFinite(value)) throw new Error('CBOR encode: only non-negative finite numbers are supported');
+      writeHeader(out, 0, value);
+    } else if (typeof value === 'string') {
+      const bytes = new TextEncoder().encode(value);
+      writeHeader(out, 3, bytes.length);
+      for (const b of bytes) out.push(b);
+    } else if (value instanceof Uint8Array) {
+      writeHeader(out, 2, value.length);
+      for (const b of value) out.push(b);
+    } else if (Array.isArray(value)) {
+      writeHeader(out, 4, value.length);
+      for (const item of value) encodeValue(out, item);
+    } else if (value === null || value === undefined) {
+      out.push(0xF6);
+    } else {
+      throw new Error('CBOR encode: unsupported JS type ' + typeof value);
+    }
+  }
+
+  function encode(value) {
+    const out = [];
+    encodeValue(out, value);
+    return new Uint8Array(out);
+  }
+
+  function decode(bytes) {
+    let pos = 0;
+
+    // JavaScript does not throw on an out-of-bounds typed-array read --
+    // bytes[pos] past the end returns undefined, which silently
+    // propagates as NaN through the arithmetic below, and slice(pos, NaN)
+    // does not throw either. Without this check, a truncated or
+    // malformed frame decodes to silently-wrong values instead of the
+    // clean, catchable error the caller (Link._decodeFrame) expects.
+    function need(n) {
+      if (pos + n > bytes.length) {
+        throw new Error('CBOR decode: unexpected end of data');
+      }
+    }
+
+    // A frame this size can never legitimately contain a huge count; this
+    // only guards against a malformed length trying to allocate an
+    // absurd array.
+    const MAX_ARRAY_ITEMS = 1024;
+
+    function readArgument(info) {
+      if (info < 24) return info;
+      if (info === 24) { need(1); const v = bytes[pos]; pos += 1; return v; }
+      if (info === 25) { need(2); const v = (bytes[pos] << 8) | bytes[pos + 1]; pos += 2; return v; }
+      if (info === 26) {
+        need(4);
+        const v = (bytes[pos] * 0x1000000) + (bytes[pos + 1] << 16) + (bytes[pos + 2] << 8) + bytes[pos + 3];
+        pos += 4;
+        return v;
+      }
+      if (info === 27) {
+        need(8);
+        let high = 0, low = 0;
+        for (let i = 0; i < 4; i++) high = high * 256 + bytes[pos + i];
+        for (let i = 4; i < 8; i++) low = low * 256 + bytes[pos + i];
+        pos += 8;
+        return high * 4294967296 + low; // exact below 2^53
+      }
+      throw new Error('CBOR decode: unsupported length form ' + info);
+    }
+
+    function decodeOne() {
+      need(1);
+      const initial = bytes[pos]; pos += 1;
+      const majorType = initial >> 5;
+      const info = initial & 0x1F;
+
+      if (majorType === 0) return readArgument(info);
+      if (majorType === 1) return -1 - readArgument(info);
+      if (majorType === 2) {
+        const len = readArgument(info);
+        need(len);
+        const slice = bytes.slice(pos, pos + len);
+        pos += len;
+        return slice;
+      }
+      if (majorType === 3) {
+        const len = readArgument(info);
+        need(len);
+        const slice = bytes.slice(pos, pos + len);
+        pos += len;
+        return new TextDecoder('utf-8', { fatal: true }).decode(slice);
+      }
+      if (majorType === 4) {
+        const len = readArgument(info);
+        if (len > MAX_ARRAY_ITEMS) {
+          throw new Error('CBOR decode: array length ' + len + ' exceeds sanity limit');
+        }
+        const arr = new Array(len);
+        for (let i = 0; i < len; i++) arr[i] = decodeOne();
+        return arr;
+      }
+      if (majorType === 7) {
+        if (info === 20) return false;
+        if (info === 21) return true;
+        if (info === 22) return null;
+        throw new Error('CBOR decode: unsupported simple/float value, info=' + info);
+      }
+      throw new Error('CBOR decode: unsupported major type ' + majorType);
+    }
+
+    const result = decodeOne();
+    return result;
+  }
+
+  return { encode, decode };
+})();
+
+/* =========================================================================
+ * Self-test: two golden vectors from docs/04-cbor-encoding.md, verified
+ * against real hardware, plus one large-uint case (t_us crosses 2^32
+ * after about 71.6 minutes of device uptime).
+ * ========================================================================= */
+function hexToBytes(hex) {
+  const clean = hex.replace(/\s+/g, '');
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
+  return out;
+}
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+}
+function bytesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+function deepEqual(a, b) {
+  if (a instanceof Uint8Array && b instanceof Uint8Array) return bytesEqual(a, b);
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  return a === b;
+}
+
+function runSelfTest() {
+  const checks = [];
+  function check(name, fn) {
+    try {
+      fn();
+      checks.push({ name, pass: true });
+    } catch (e) {
+      checks.push({ name, pass: false, error: String(e && e.message || e) });
+    }
+  }
+
+  // Vector 1: PING command. docs/04-cbor-encoding.md
+  const pingPayload = hexToBytes('83 00 01 64 50 49 4E 47');
+  const pingFramed = hexToBytes('83 00 01 64 50 49 4E 47 31 57');
+  const pingCobs = hexToBytes('02 83 09 01 64 50 49 4E 47 31 57');
+
+  check('cbor encode: PING', () => {
+    const got = CBOR.encode([0, 1, 'PING']);
+    if (!bytesEqual(got, pingPayload)) throw new Error('got ' + bytesToHex(got));
+  });
+  check('cbor decode: PING', () => {
+    const got = CBOR.decode(pingPayload);
+    if (!deepEqual(got, [0, 1, 'PING'])) throw new Error('got ' + JSON.stringify(got));
+  });
+  check('crc16: PING payload', () => {
+    const got = crc16(pingPayload);
+    if (got !== 0x3157) throw new Error('got 0x' + got.toString(16));
+  });
+  check('cobs encode: PING framed', () => {
+    const got = cobsEncode(pingFramed);
+    if (!bytesEqual(got, pingCobs)) throw new Error('got ' + bytesToHex(got));
+  });
+  check('cobs decode: PING framed', () => {
+    const got = cobsDecode(pingCobs);
+    if (!bytesEqual(got, pingFramed)) throw new Error('got ' + bytesToHex(got));
+  });
+
+  // Vector 2: a btn0 sample. docs/04-cbor-encoding.md
+  const samplePayload = hexToBytes('86 04 18 42 1A 00 01 E4 5F 64 62 74 6E 30 F5 00');
+  const sampleFramed = hexToBytes('86 04 18 42 1A 00 01 E4 5F 64 62 74 6E 30 F5 00 A8 6C');
+  const sampleCobs = hexToBytes('06 86 04 18 42 1A 0A 01 E4 5F 64 62 74 6E 30 F5 03 A8 6C');
+
+  check('cbor decode: sample', () => {
+    const got = CBOR.decode(samplePayload);
+    if (!deepEqual(got, [4, 66, 123999, 'btn0', true, 0])) throw new Error('got ' + JSON.stringify(got));
+  });
+  check('crc16: sample payload', () => {
+    const got = crc16(samplePayload);
+    if (got !== 0xA86C) throw new Error('got 0x' + got.toString(16));
+  });
+  check('cobs round trip: sample (has an embedded 0x00 byte)', () => {
+    const enc = cobsEncode(sampleFramed);
+    if (!bytesEqual(enc, sampleCobs)) throw new Error('encode got ' + bytesToHex(enc));
+    const dec = cobsDecode(sampleCobs);
+    if (!bytesEqual(dec, sampleFramed)) throw new Error('decode got ' + bytesToHex(dec));
+  });
+
+  // A t_us value above 2^32 forces CBOR's 8-byte (0x1B) unsigned-int form.
+  // This is the bug that hides for the first ~71.6 minutes of uptime.
+  check('cbor round trip: uint above 2^32', () => {
+    const big = 5000000000; // > 4294967296
+    const encoded = CBOR.encode([4, 1, big, 'btn0', false, 0]);
+    const decoded = CBOR.decode(encoded);
+    if (decoded[2] !== big) throw new Error('got ' + decoded[2] + ' expected ' + big);
+  });
+
+  return checks;
+}
+
+/* =========================================================================
+ * S3: Transport — one Link object wrapping a real or mock SerialPort.
+ * ========================================================================= */
+
+class ProtocolError extends Error {
+  constructor(verb, code) {
+    super(verb + ' failed: ' + code + ' (' + (ERROR_MEANING[code] || 'unknown code') + ')');
+    this.verb = verb;
+    this.code = code;
+  }
+}
+
+class Link extends EventTarget {
+  constructor(port) {
+    super();
+    this.port = port;
+    this.writer = null;
+    this.reader = null;
+    this.seq = 1;
+    this.pending = new Map();
+    this.accum = new Uint8Array(MAX_WIRE_FRAME);
+    this.accumLen = 0;
+    this.closed = false;
+    this.stats = { framesRx: 0, crcFail: 0, decodeFail: 0 };
+  }
+
+  async open() {
+    await this.port.open({ baudRate: 115200, bufferSize: 4096 });
+    this._attach();
+  }
+
+  // Wires up an already-open port. Used when a port was opened separately
+  // to probe it (see probeGrantedPorts) and turned out to work.
+  _attach() {
+    this.writer = this.port.writable.getWriter();
+    this.reader = this.port.readable.getReader();
+    this._readLoop(); // not awaited: runs for the life of the connection
+  }
+
+  nextSeq() {
+    const s = this.seq;
+    this.seq = (this.seq % 65535) + 1;
+    return s;
+  }
+
+  async _readLoop() {
+    try {
+      while (true) {
+        const { value, done } = await this.reader.read();
+        if (done) break;
+        this._feed(value);
+      }
+    } catch (e) {
+      if (!this.closed) this.dispatchEvent(new CustomEvent('lost', { detail: e }));
+      return;
+    }
+    if (!this.closed) this.dispatchEvent(new CustomEvent('lost', { detail: new Error('read stream closed') }));
+  }
+
+  _feed(chunk) {
+    for (let i = 0; i < chunk.length; i++) {
+      if (this.accumLen < this.accum.length) {
+        this.accum[this.accumLen++] = chunk[i];
+      }
+      if (chunk[i] !== 0x00) continue;
+
+      this.stats.framesRx++;
+      const wireLen = this.accumLen - 1; // exclude the delimiter
+      if (wireLen > 0 && this.accumLen <= this.accum.length) {
+        this._decodeFrame(this.accum.slice(0, wireLen));
+      } else {
+        this.stats.crcFail++;
+        this.dispatchEvent(new CustomEvent('framingerror'));
+      }
+      this.accumLen = 0;
+    }
+  }
+
+  _decodeFrame(wireBytes) {
+    let framed;
+    try {
+      framed = cobsDecode(wireBytes);
+    } catch (e) {
+      this.stats.crcFail++;
+      this.dispatchEvent(new CustomEvent('framingerror', { detail: 'cobs: ' + e.message }));
+      return;
+    }
+    if (framed.length < 2) {
+      this.stats.crcFail++;
+      this.dispatchEvent(new CustomEvent('framingerror', { detail: 'too short' }));
+      return;
+    }
+    const payload = framed.slice(0, framed.length - 2);
+    const receivedCrc = (framed[framed.length - 2] << 8) | framed[framed.length - 1];
+    if (crc16(payload) !== receivedCrc) {
+      this.stats.crcFail++;
+      this.dispatchEvent(new CustomEvent('framingerror', { detail: 'crc mismatch' }));
+      return;
+    }
+    let item;
+    try {
+      item = CBOR.decode(payload);
+    } catch (e) {
+      this.stats.decodeFail++;
+      this.dispatchEvent(new CustomEvent('framingerror', { detail: 'cbor: ' + e.message }));
+      return;
+    }
+    this._dispatch(item);
+  }
+
+  _dispatch(item) {
+    if (!Array.isArray(item) || item.length < 2) return;
+    const kind = item[0];
+    if (kind === FRAME_KIND.DATA) {
+      const [, seq, tUs, channel, value, flags] = item;
+      this.dispatchEvent(new CustomEvent('sample', { detail: { seq, tUs, channel, value, flags } }));
+      return;
+    }
+    const seq = item[1];
+    const entry = this.pending.get(seq);
+    if (!entry) {
+      this.dispatchEvent(new CustomEvent('log', { detail: { level: 'warn', text: 'response for unknown seq ' + seq } }));
+      return;
+    }
+    if (kind === FRAME_KIND.ROW) {
+      entry.rows.push(item.slice(3));
+      return;
+    }
+    clearTimeout(entry.timer);
+    this.pending.delete(seq);
+    if (kind === FRAME_KIND.OK) {
+      entry.resolve({ verb: item[2], values: item.slice(3), rows: entry.rows });
+    } else if (kind === FRAME_KIND.ERR) {
+      entry.reject(new ProtocolError(item[2], item[3]));
+    }
+  }
+
+  send(verb, ...args) {
+    const seq = this.nextSeq();
+    const payload = CBOR.encode([FRAME_KIND.CMD, seq, verb, ...args]);
+    const crc = crc16(payload);
+    const framed = new Uint8Array(payload.length + 2);
+    framed.set(payload, 0);
+    framed[payload.length] = (crc >> 8) & 0xFF;
+    framed[payload.length + 1] = crc & 0xFF;
+    const encoded = cobsEncode(framed);
+    const wire = new Uint8Array(encoded.length + 1);
+    wire.set(encoded, 0);
+    wire[encoded.length] = 0x00;
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(seq);
+        reject(new Error(verb + ' timed out waiting for a response'));
+      }, CMD_TIMEOUT_MS);
+      this.pending.set(seq, { verb, rows: [], resolve, reject, timer });
+      this.writer.write(wire).catch(reject);
+    });
+  }
+
+  sendFireAndForget(verb, ...args) {
+    // Used only for a best-effort STOP during teardown, where we cannot
+    // wait for a response.
+    try {
+      const seq = this.nextSeq();
+      const payload = CBOR.encode([FRAME_KIND.CMD, seq, verb, ...args]);
+      const crc = crc16(payload);
+      const framed = new Uint8Array(payload.length + 2);
+      framed.set(payload, 0);
+      framed[payload.length] = (crc >> 8) & 0xFF;
+      framed[payload.length + 1] = crc & 0xFF;
+      const encoded = cobsEncode(framed);
+      const wire = new Uint8Array(encoded.length + 1);
+      wire.set(encoded, 0);
+      wire[encoded.length] = 0x00;
+      this.writer.write(wire).catch(() => {});
+    } catch (e) { /* best-effort */ }
+  }
+
+  async close() {
+    this.closed = true;
+    for (const [, entry] of this.pending) {
+      clearTimeout(entry.timer);
+      entry.reject(new Error('link closed'));
+    }
+    this.pending.clear();
+    try { await this.reader.cancel(); } catch (e) {}
+    try { this.reader.releaseLock(); } catch (e) {}
+    try { this.writer.releaseLock(); } catch (e) {}
+    try { await this.port.close(); } catch (e) {}
+  }
+}
+
+/* =========================================================================
+ * S4: App state
+ * ========================================================================= */
+
+const state = {
+  conn: 'idle', // idle | requesting | connecting | connected | lost
+  streaming: false,
+  device: null, // { name, fwVersion, serial }
+  periodUs: 10000,
+  hue: 200,
+  sat: 1,
+  brightness: 0.20,
+  lastSentRgb: null,
+  pendingRgb: null,
+  sending: false,
+  btnNow: null,
+  windowSec: 10,
+  stats: { framesRx: 0, ratePerSec: 0, dropsSeen: 0, pressCount: 0, crcFail: 0, decodeFail: 0, lastErr: null },
+};
+
+let link = null;
+let connecting = false; // guards against a second connect() starting before the first finishes
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem('m5atom-panel-prefs');
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (typeof p.hue === 'number') state.hue = p.hue;
+    if (typeof p.sat === 'number') state.sat = p.sat;
+    if (typeof p.brightness === 'number') state.brightness = p.brightness;
+    if (typeof p.periodUs === 'number') state.periodUs = p.periodUs;
+    if (typeof p.windowSec === 'number') state.windowSec = p.windowSec;
+  } catch (e) { /* ignore malformed prefs */ }
+}
+function savePrefs() {
+  try {
+    localStorage.setItem('m5atom-panel-prefs', JSON.stringify({
+      hue: state.hue, sat: state.sat, brightness: state.brightness,
+      periodUs: state.periodUs, windowSec: state.windowSec,
+    }));
+  } catch (e) { /* ignore (private browsing, quota) */ }
+}
+
+/* =========================================================================
+ * S5: Sample store (bounded array, trimmed to the visible window + margin)
+ * ========================================================================= */
+
+const samples = []; // { tUs, value, flags }
+let anchorDevUs = null;
+let anchorHostMs = null;
+
+// Array.shift() re-indexes every remaining element on every call. At the
+// 1 kHz option this page offers, the window holds up to ~35,000 entries,
+// so trimming one-at-a-time on every sample costs up to ~35 million
+// element moves per second -- enough to visibly stutter the graph during
+// exactly the high-rate sessions this tool is meant to support. Trimming
+// the whole backlog in one splice(), only every TRIM_EVERY samples,
+// keeps the same bounded memory with a fraction of the reindexing work.
+const TRIM_EVERY = 64;
+let samplesSinceTrim = 0;
+
+function onSample(detail) {
+  if (detail.channel !== 'btn0') return;
+  const value = !!detail.value;
+  samples.push({ tUs: detail.tUs, value, flags: detail.flags });
+  anchorDevUs = detail.tUs;
+  anchorHostMs = performance.now();
+
+  state.stats.framesRx++;
+  if (detail.flags & 1) state.stats.dropsSeen++;
+  if (value && state.btnNow === false) state.stats.pressCount++;
+  state.btnNow = value;
+
+  samplesSinceTrim++;
+  if (samplesSinceTrim >= TRIM_EVERY) {
+    samplesSinceTrim = 0;
+    const cutoff = detail.tUs - (state.windowSec + 5) * 1e6;
+    let dropCount = 0;
+    while (dropCount < samples.length - 1 && samples[dropCount].tUs < cutoff) dropCount++;
+    if (dropCount > 0) samples.splice(0, dropCount);
+  }
+
+  updateRate();
+  updateReadout();
+}
+
+let rateWindow = [];
+let rateSamplesSinceTrim = 0;
+function updateRate() {
+  const now = performance.now();
+  rateWindow.push(now);
+  rateSamplesSinceTrim++;
+  if (rateSamplesSinceTrim >= TRIM_EVERY) {
+    rateSamplesSinceTrim = 0;
+    let dropCount = 0;
+    while (dropCount < rateWindow.length && now - rateWindow[dropCount] > 1000) dropCount++;
+    if (dropCount > 0) rateWindow.splice(0, dropCount);
+  }
+  state.stats.ratePerSec = rateWindow.length;
+}
+
+/* =========================================================================
+ * S6: Graph rendering
+ * ========================================================================= */
+
+const canvas = document.getElementById('graphCanvas');
+const ctx = canvas.getContext('2d');
+let rafHandle = null;
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(160 * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(resizeCanvas).observe(canvas);
+
+function currentRightEdgeUs() {
+  if (anchorDevUs === null) return null;
+  const elapsedMs = performance.now() - anchorHostMs;
+  return anchorDevUs + Math.max(0, elapsedMs) * 1000;
+}
+
+function drawGraph() {
+  const cssWidth = canvas.getBoundingClientRect().width;
+  const cssHeight = 160;
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+  const style = getComputedStyle(document.documentElement);
+  const grid = style.getPropertyValue('--grid').trim();
+  const baseline = style.getPropertyValue('--baseline').trim();
+  const seriesColor = style.getPropertyValue('--series-1').trim();
+  const seriesFill = style.getPropertyValue('--series-1-fill').trim();
+  const muted = style.getPropertyValue('--text-muted').trim();
+
+  const rightUs = currentRightEdgeUs();
+  const padTop = 14, padBottom = 20;
+  const plotH = cssHeight - padTop - padBottom;
+  const yPressed = padTop + plotH * 0.18;
+  const yReleased = padTop + plotH * 0.82;
+
+  // Gridlines for the two levels.
+  ctx.strokeStyle = grid;
+  ctx.lineWidth = 1;
+  [yPressed, yReleased].forEach(y => {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cssWidth, y); ctx.stroke();
+  });
+  ctx.fillStyle = muted;
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.fillText('pressed', 4, yPressed - 4);
+  ctx.fillText('released', 4, yReleased - 4);
+
+  if (rightUs === null || samples.length === 0) {
+    ctx.fillStyle = muted;
+    ctx.fillText('waiting for samples…', cssWidth / 2 - 50, cssHeight / 2);
+    return;
+  }
+
+  const windowUs = state.windowSec * 1e6;
+  const leftUs = rightUs - windowUs;
+  const xOf = (tUs) => ((tUs - leftUs) / windowUs) * cssWidth;
+  const yOf = (v) => v ? yPressed : yReleased;
+
+  // Vertical second ticks, aligned to whole device seconds.
+  ctx.strokeStyle = grid;
+  const firstTickS = Math.ceil(leftUs / 1e6);
+  const lastTickS = Math.floor(rightUs / 1e6);
+  for (let s = firstTickS; s <= lastTickS; s++) {
+    const x = xOf(s * 1e6);
+    ctx.beginPath(); ctx.moveTo(x, padTop); ctx.lineTo(x, cssHeight - padBottom); ctx.stroke();
+  }
+
+  // Find the visible slice (with one sample of margin on each side).
+  let startIdx = 0;
+  while (startIdx < samples.length - 1 && samples[startIdx + 1].tUs < leftUs) startIdx++;
+
+  // Build a coalesced step path: one vertex per transition, not per sample.
+  ctx.beginPath();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = seriesColor;
+  ctx.fillStyle = seriesFill;
+
+  let prev = null;
+  let fillStartX = null;
+  const fillSegments = [];
+
+  for (let i = startIdx; i < samples.length; i++) {
+    const s = samples[i];
+    const x = Math.max(0, Math.min(cssWidth, xOf(s.tUs)));
+    if (prev === null) {
+      ctx.moveTo(x, yOf(s.value));
+    } else if (s.value !== prev.value) {
+      ctx.lineTo(x, yOf(prev.value));
+      ctx.lineTo(x, yOf(s.value));
+    }
+    if (s.value && fillStartX === null) fillStartX = x;
+    if (!s.value && fillStartX !== null) { fillSegments.push([fillStartX, x]); fillStartX = null; }
+    prev = s;
+  }
+  // Extend the line and any open fill to the current right edge.
+  const rightX = xOf(rightUs);
+  if (prev) {
+    ctx.lineTo(rightX, yOf(prev.value));
+    if (fillStartX !== null) fillSegments.push([fillStartX, rightX]);
+  }
+  ctx.stroke();
+
+  fillSegments.forEach(([x0, x1]) => {
+    ctx.fillRect(x0, yPressed - 6, Math.max(1, x1 - x0), (yReleased - yPressed) + 12);
+  });
+
+  // Mark DROP flags with a small tick.
+  ctx.fillStyle = style.getPropertyValue('--warning').trim();
+  for (let i = startIdx; i < samples.length; i++) {
+    if (samples[i].flags & 1) {
+      const x = xOf(samples[i].tUs);
+      ctx.fillRect(x - 1, padTop, 2, 6);
+    }
+  }
+
+  // Live dot at the right edge.
+  if (prev) {
+    ctx.beginPath();
+    ctx.arc(rightX, yOf(prev.value), 4, 0, Math.PI * 2);
+    ctx.fillStyle = seriesColor;
+    ctx.fill();
+  }
+
+  // Stall overlay: no sample for more than 3 periods.
+  if (prev && (rightUs - prev.tUs) > state.periodUs * 3) {
+    ctx.fillStyle = muted;
+    ctx.fillText('no recent samples', cssWidth - 120, padTop + 12);
+  }
+}
+
+function graphLoop() {
+  drawGraph();
+  rafHandle = requestAnimationFrame(graphLoop);
+}
+function startGraphLoop() { if (!rafHandle) graphLoop(); }
+function stopGraphLoop() { if (rafHandle) { cancelAnimationFrame(rafHandle); rafHandle = null; } }
+
+function updateReadout() {
+  const badge = document.getElementById('stateBadge');
+  if (state.btnNow === null) {
+    badge.textContent = '—'; badge.className = 'state-badge released';
+  } else {
+    badge.textContent = state.btnNow ? 'PRESSED' : 'RELEASED';
+    badge.className = 'state-badge ' + (state.btnNow ? 'pressed' : 'released');
+  }
+  document.getElementById('statFrames').textContent = state.stats.framesRx;
+  document.getElementById('statRate').textContent = state.stats.ratePerSec;
+  document.getElementById('statDrops').textContent = state.stats.dropsSeen;
+  document.getElementById('statPresses').textContent = state.stats.pressCount;
+}
+
+/* =========================================================================
+ * S7: LED color and brightness
+ * ========================================================================= */
+
+function hslToRgb(h, s, l) {
+  const hue = (((h % 360) + 360) % 360) / 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((hue * 6) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (hue < 1 / 6) [r, g, b] = [c, x, 0];
+  else if (hue < 2 / 6) [r, g, b] = [x, c, 0];
+  else if (hue < 3 / 6) [r, g, b] = [0, c, x];
+  else if (hue < 4 / 6) [r, g, b] = [0, x, c];
+  else if (hue < 5 / 6) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+function effectiveRgb() {
+  const [r, g, b] = hslToRgb(state.hue, state.sat, 0.5);
+  const scale = Math.pow(state.brightness, 2.2);
+  let er = Math.round(r * scale), eg = Math.round(g * scale), eb = Math.round(b * scale);
+  if (scale > 0 && er === 0 && eg === 0 && eb === 0) {
+    const vals = [r, g, b];
+    const maxIdx = vals.indexOf(Math.max(...vals));
+    const bump = [er, eg, eb];
+    bump[maxIdx] = 1;
+    [er, eg, eb] = bump;
+  }
+  return [er, eg, eb];
+}
+
+function updateLedPreview() {
+  const [r, g, b] = effectiveRgb();
+  const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  document.getElementById('ledPreview').style.background = hex;
+  document.getElementById('ledPreviewText').textContent = `rgb(${r},${g},${b}) · ${hex}`;
+  const [baseR, baseG, baseB] = hslToRgb(state.hue, state.sat, 0.5);
+  document.getElementById('brightnessSlider').style.setProperty('--swatch-color',
+    `rgb(${baseR},${baseG},${baseB})`);
+}
+
+async function pumpLed() {
+  if (state.sending) return;
+  state.sending = true;
+  try {
+    while (state.pendingRgb && (!state.lastSentRgb ||
+           state.pendingRgb.join(',') !== state.lastSentRgb.join(','))) {
+      const rgb = state.pendingRgb;
+      try {
+        if (link && state.conn === 'connected') {
+          await link.send('SET', 'led0', new Uint8Array(rgb));
+        }
+        state.lastSentRgb = rgb;
+      } catch (e) {
+        logLine('err', 'SET led0 failed: ' + e.message);
+        await new Promise(r => setTimeout(r, 250));
+      }
+      await new Promise(r => setTimeout(r, SET_MIN_GAP_MS));
+    }
+  } finally {
+    state.sending = false;
+  }
+}
+
+function requestLedUpdate() {
+  state.pendingRgb = effectiveRgb();
+  updateLedPreview();
+  savePrefs();
+  pumpLed();
+}
+
+const SWATCHES = [
+  { name: 'Red', hue: 0, sat: 1 },
+  { name: 'Orange', hue: 30, sat: 1 },
+  { name: 'Yellow', hue: 60, sat: 1 },
+  { name: 'Green', hue: 120, sat: 1 },
+  { name: 'Cyan', hue: 180, sat: 1 },
+  { name: 'Blue', hue: 240, sat: 1 },
+  { name: 'Violet', hue: 270, sat: 1 },
+  { name: 'Magenta', hue: 300, sat: 1 },
+  { name: 'White', hue: 0, sat: 0 },
+  { name: 'Off', off: true },
+];
+
+function buildSwatches() {
+  const row = document.getElementById('swatchRow');
+  row.innerHTML = '';
+  let prevBrightness = state.brightness || 0.2;
+  SWATCHES.forEach(sw => {
+    const btn = document.createElement('button');
+    btn.className = 'swatch' + (sw.off ? ' off' : '');
+    btn.title = sw.name;
+    if (sw.off) {
+      btn.textContent = '⏻';
+    } else {
+      const [r, g, b] = hslToRgb(sw.hue, sw.sat, 0.5);
+      btn.style.background = `rgb(${r},${g},${b})`;
+    }
+    btn.addEventListener('click', () => {
+      if (sw.off) {
+        prevBrightness = state.brightness > 0 ? state.brightness : prevBrightness;
+        state.brightness = 0;
+      } else {
+        state.hue = sw.hue;
+        state.sat = sw.sat;
+        if (state.brightness === 0) state.brightness = prevBrightness || 0.2;
+      }
+      syncLedControlsFromState();
+      requestLedUpdate();
+    });
+    row.appendChild(btn);
+  });
+}
+
+function syncLedControlsFromState() {
+  document.getElementById('hueSlider').value = state.hue;
+  document.getElementById('brightnessSlider').value = Math.round(state.brightness * 100);
+  updateLedPreview();
+}
+
+/* =========================================================================
+ * S8: UI wiring
+ * ========================================================================= */
+
+function logLine(level, text) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = level;
+  const t = new Date().toLocaleTimeString();
+  line.textContent = `[${t}] ${text}`;
+  el.appendChild(line);
+  while (el.childElementCount > 300) el.removeChild(el.firstChild);
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  if (nearBottom) el.scrollTop = el.scrollHeight;
+  if (level === 'err') state.stats.lastErr = text;
+}
+
+function setStatusPill(kind, text) {
+  const pill = document.getElementById('statusPill');
+  pill.className = 'pill' + (kind ? ' ' + kind : '');
+  document.getElementById('statusText').textContent = text;
+}
+
+function showBanner(text) {
+  const b = document.getElementById('topBanner');
+  b.hidden = false;
+  b.textContent = text;
+}
+
+function setConnectedUi(connected) {
+  document.getElementById('connectBtn').hidden = connected;
+  document.getElementById('disconnectBtn').hidden = !connected;
+  document.getElementById('allPortsCheck').closest('label').style.display = connected ? 'none' : '';
+}
+
+// The device presents two USB serial ports (CDC0 for commands and data,
+// CDC1 for plain-text logs), and a host's port picker cannot tell them
+// apart by name (see docs/02-usb-device-and-descriptors.md). Once the
+// user has granted access to a port here at least once, this tries every
+// previously-granted matching port and keeps whichever one actually
+// answers PING, so a returning user skips the chooser (and the guessing)
+// entirely. Returns a live, attached Link, or null if none worked.
+async function probeGrantedPorts() {
+  if (!('serial' in navigator)) return null;
+  let candidates;
+  try {
+    candidates = await navigator.serial.getPorts();
+  } catch (e) { return null; }
+
+  for (const candidate of candidates) {
+    const info = candidate.getInfo ? candidate.getInfo() : {};
+    if (info.usbVendorId !== USB_VID || info.usbProductId !== USB_PID) continue;
+
+    let opened = false;
+    try {
+      await candidate.open({ baudRate: 115200, bufferSize: 4096 });
+      opened = true;
+      const probe = new Link(candidate);
+      probe._attach();
+      await probe.send('PING');
+      return probe; // this one answered — use it
+    } catch (e) {
+      if (opened) { try { await candidate.close(); } catch (_e) {} }
+      // not this one — try the next candidate
+    }
+  }
+  return null;
+}
+
+async function connect(preselectedPort) {
+  // Without this guard, an impatient second click during the few seconds
+  // probeGrantedPorts()/connect() takes (the Connect button stays visible
+  // until the first attempt finishes) can start a second, concurrent
+  // connection attempt alongside the first.
+  if (connecting || state.conn === 'connected') return;
+  connecting = true;
+  document.getElementById('connectBtn').disabled = true;
+
+  if (!('serial' in navigator) && !mockRequested()) {
+    showBanner(capabilityMessage());
+    connecting = false;
+    document.getElementById('connectBtn').disabled = false;
+    return;
+  }
+  setStatusPill('', 'Connecting…');
+  try {
+    let readyLink = null;
+    let port = preselectedPort;
+
+    if (!port && !mockRequested() && !document.getElementById('allPortsCheck').checked) {
+      readyLink = await probeGrantedPorts();
+      if (readyLink) logLine('info', 'Reused a previously-granted port — no chooser needed.');
+    }
+
+    if (!readyLink && !port) {
+      setStatusPill('', 'Requesting port…');
+      if (mockRequested()) {
+        port = new MockSerialPort();
+      } else {
+        const opts = document.getElementById('allPortsCheck').checked
+          ? {} : { filters: [{ usbVendorId: USB_VID, usbProductId: USB_PID }] };
+        port = await navigator.serial.requestPort(opts);
+      }
+    }
+
+    setStatusPill('', 'Connecting…');
+    link = readyLink || new Link(port);
+    link.addEventListener('sample', (e) => onSample(e.detail));
+    link.addEventListener('lost', () => onLinkLost());
+    link.addEventListener('framingerror', (e) => {
+      logLine('warn', 'framing error: ' + (e.detail || 'unknown'));
+    });
+    link.addEventListener('log', (e) => logLine(e.detail.level, e.detail.text));
+
+    let id;
+    if (readyLink) {
+      // probeGrantedPorts() already confirmed PING works on this link.
+    } else {
+      await link.open();
+      try {
+        await link.send('PING');
+      } catch (e) {
+        throw new Error('No response to PING. This may be the log port (CDC1) — try the other port.');
+      }
+    }
+    id = await link.send('ID');
+    state.device = { name: id.values[0], fwVersion: id.values[1], serial: id.values[2] };
+
+    try { await link.send('STOP'); } catch (e) { /* ESTATE just means it wasn't streaming */ }
+
+    const periodResp = await link.send('CFG', 'PERIOD_US', state.periodUs);
+    state.periodUs = periodResp.values[0];
+
+    await link.send('SUB', 'btn0');
+    await link.send('START');
+    state.streaming = true;
+
+    try {
+      const ledResp = await link.send('GET', 'led0');
+      const rgb = ledResp.values[0];
+      if (rgb && rgb.length === 3) adoptDeviceColor(rgb);
+    } catch (e) { /* keep the UI's own color if this fails */ }
+
+    // A fresh connection starts a fresh readout — old numbers from a
+    // previous session (or from before an unexpected disconnect) should
+    // not linger on screen once new, real data is about to replace them.
+    samples.length = 0;
+    anchorDevUs = null;
+    anchorHostMs = null;
+    rateWindow = [];
+    state.btnNow = null;
+    state.stats = { framesRx: 0, ratePerSec: 0, dropsSeen: 0, pressCount: 0, crcFail: 0, decodeFail: 0, lastErr: null };
+
+    state.conn = 'connected';
+    setStatusPill('connected', 'Connected');
+    setConnectedUi(true);
+    document.getElementById('deviceId').hidden = false;
+    document.getElementById('deviceName').textContent = state.device.name;
+    document.getElementById('deviceMeta').textContent =
+      'fw ' + state.device.fwVersion + ' · serial ' + state.device.serial;
+    document.getElementById('frozenNote').hidden = true;
+    updateReadout();
+    startGraphLoop();
+    logLine('info', 'Connected to ' + state.device.name);
+  } catch (e) {
+    setStatusPill('error', 'Connection failed');
+    logLine('err', e.message);
+    if (link) { try { await link.close(); } catch (_e) {} link = null; }
+  } finally {
+    connecting = false;
+    document.getElementById('connectBtn').disabled = false;
+  }
+}
+
+function adoptDeviceColor(rgb) {
+  const [r, g, b] = rgb;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const brightness = max / 255;
+  let hue = state.hue, sat = state.sat;
+  if (max > 0) {
+    const l = (max + min) / 2 / 255;
+    const d = (max - min) / 255;
+    if (d > 0) {
+      sat = d / (1 - Math.abs(2 * l - 1) || 1);
+      if (max === r) hue = 60 * (((g - b) / 255 / d) % 6);
+      else if (max === g) hue = 60 * ((b - r) / 255 / d + 2);
+      else hue = 60 * ((r - g) / 255 / d + 4);
+      if (hue < 0) hue += 360;
+    } else {
+      sat = 0;
+    }
+  }
+  state.hue = Math.round(hue);
+  state.sat = Math.round(sat * 100) / 100;
+  state.brightness = Math.round(brightness * 100) / 100;
+  state.lastSentRgb = [r, g, b];
+  syncLedControlsFromState();
+}
+
+async function teardown(reason) {
+  stopGraphLoop();
+  if (link) {
+    if (reason !== 'lost') {
+      link.sendFireAndForget('STOP');
+    }
+    try { await link.close(); } catch (e) {}
+  }
+  link = null;
+  state.conn = reason === 'lost' ? 'lost' : 'idle';
+  state.streaming = false;
+  setConnectedUi(false);
+  if (reason === 'lost') {
+    setStatusPill('lost', 'Disconnected');
+    document.getElementById('frozenNote').hidden = false;
+    logLine('err', 'Device disconnected');
+  } else {
+    setStatusPill('', 'Not connected');
+    document.getElementById('deviceId').hidden = true;
+  }
+}
+
+function onLinkLost() {
+  if (state.conn === 'lost' || state.conn === 'idle') return;
+  teardown('lost');
+}
+
+function mockRequested() {
+  return new URLSearchParams(location.search).has('mock');
+}
+function mockFault() {
+  return new URLSearchParams(location.search).get('fault');
+}
+function capabilityMessage() {
+  if (window.self !== window.top) return 'Web Serial needs a top-level page. This page is inside an iframe.';
+  if (!window.isSecureContext) return 'Web Serial needs a secure context (file:// or https://, not plain http://).';
+  return 'This browser does not support the Web Serial API. Use a recent Chrome or Edge.';
+}
+
+document.getElementById('connectBtn').addEventListener('click', () => connect());
+document.getElementById('disconnectBtn').addEventListener('click', () => teardown('user'));
+
+document.getElementById('hueSlider').addEventListener('input', (e) => {
+  state.hue = Number(e.target.value);
+  requestLedUpdate();
+});
+document.getElementById('brightnessSlider').addEventListener('input', (e) => {
+  state.brightness = Number(e.target.value) / 100;
+  requestLedUpdate();
+});
+document.getElementById('windowSelect').addEventListener('change', (e) => {
+  state.windowSec = Number(e.target.value);
+  savePrefs();
+});
+document.getElementById('periodSelect').addEventListener('change', async (e) => {
+  const wanted = Number(e.target.value);
+  if (link && state.conn === 'connected') {
+    try {
+      const resp = await link.send('CFG', 'PERIOD_US', wanted);
+      state.periodUs = resp.values[0];
+      logLine('info', 'Sample period set to ' + state.periodUs + ' µs');
+    } catch (err) {
+      logLine('err', 'CFG PERIOD_US failed: ' + err.message);
+      e.target.value = state.periodUs;
+    }
+  } else {
+    state.periodUs = wanted;
+  }
+  savePrefs();
+});
+document.getElementById('verboseCheck').addEventListener('change', (e) => {
+  window.__verbose = e.target.checked;
+});
+
+window.addEventListener('pagehide', () => {
+  if (link) link.sendFireAndForget('STOP');
+});
+
+/* =========================================================================
+ * S9: Boot
+ * ========================================================================= */
+
+function boot() {
+  loadPrefs();
+  buildSwatches();
+  syncLedControlsFromState();
+  document.getElementById('windowSelect').value = String(state.windowSec);
+  document.getElementById('periodSelect').value = String(state.periodUs);
+  resizeCanvas();
+  drawGraph();
+
+  const results = runSelfTest();
+  const failed = results.filter(r => !r.pass);
+  window.__selfTest = () => results;
+  if (failed.length) {
+    showBanner('Internal self-test failed (' + failed.length + ' check' +
+      (failed.length > 1 ? 's' : '') + ') — Connect is disabled. See the console for details.');
+    console.error('Self-test failures:', failed);
+    document.getElementById('connectBtn').disabled = true;
+  } else {
+    console.log('Self-test: all ' + results.length + ' checks passed.');
+  }
+
+  if (!('serial' in navigator) && !mockRequested()) {
+    showBanner(capabilityMessage());
+    document.getElementById('connectBtn').disabled = true;
+  }
+
+  if (mockRequested()) {
+    logLine('info', 'Mock mode active (?mock=1). No real device is used.');
+  }
+}
+
+/* =========================================================================
+ * S10: Mock transport, for exercising the whole app without hardware.
+ * Enable with ?mock=1, and add &fault=err|crc|drop|stall|lost to inject
+ * a failure mode. Produces real wire bytes into the same parser used for
+ * a real device — this is not a UI-only stub.
+ * ========================================================================= */
+
+class MockSerialPort {
+  constructor() {
+    this._toDevice = [];
+    this._streaming = false;
+    this._periodUs = 100000;
+    this._pressed = false;
+    this._t0 = performance.now();
+    this._outQueue = [];
+    this._outResolvers = [];
+    this._timer = null;
+    this._fault = mockFault();
+    this._faultOnce = { crc: false, drop: false };
+  }
+
+  async open() {
+    this._loopTimer = setInterval(() => this._tick(), 20);
+    if (this._fault === 'lost') {
+      setTimeout(() => { this._push(null); }, 3000); // simulate a dropped link
+    }
+  }
+
+  get writable() {
+    const self = this;
+    return {
+      getWriter() {
+        return {
+          async write(bytes) { self._handleIncoming(bytes); },
+          releaseLock() {},
+        };
+      },
+    };
+  }
+  get readable() {
+    const self = this;
+    return {
+      getReader() {
+        return {
+          async read() {
+            return new Promise((resolve) => {
+              if (self._outQueue.length) return resolve({ value: self._outQueue.shift(), done: false });
+              self._outResolvers.push(resolve);
+            });
+          },
+          async cancel() {},
+          releaseLock() {},
+        };
+      },
+    };
+  }
+
+  _push(bytes) {
+    if (bytes === null) {
+      if (this._outResolvers.length) this._outResolvers.shift()({ value: undefined, done: true });
+      else this._outQueue.push(undefined);
+      return;
+    }
+    if (this._outResolvers.length) this._outResolvers.shift()({ value: bytes, done: false });
+    else this._outQueue.push(bytes);
+  }
+
+  _sendFrame(items) {
+    const payload = CBOR.encode(items);
+    let crc = crc16(payload);
+    if (this._fault === 'crc' && !this._faultOnce.crc) { crc ^= 0xFFFF; this._faultOnce.crc = true; }
+    const framed = new Uint8Array(payload.length + 2);
+    framed.set(payload, 0);
+    framed[payload.length] = (crc >> 8) & 0xFF;
+    framed[payload.length + 1] = crc & 0xFF;
+    const encoded = cobsEncode(framed);
+    const wire = new Uint8Array(encoded.length + 1);
+    wire.set(encoded, 0);
+    wire[encoded.length] = 0x00;
+    this._push(wire);
+  }
+
+  _handleIncoming(bytes) {
+    // Parse exactly like the real device would: split on 0x00, COBS+CRC+CBOR.
+    let acc = bytes;
+    let start = 0;
+    for (let i = 0; i < acc.length; i++) {
+      if (acc[i] !== 0x00) continue;
+      const wire = acc.slice(start, i);
+      start = i + 1;
+      try {
+        const framed = cobsDecode(wire);
+        const payload = framed.slice(0, framed.length - 2);
+        const item = CBOR.decode(payload);
+        this._handleCommand(item);
+      } catch (e) { /* malformed: real device would silently resync */ }
+    }
+  }
+
+  _handleCommand(item) {
+    const [, seq, verb, ...args] = item;
+    const ok = (...values) => this._sendFrame([FRAME_KIND.OK, seq, verb, ...values]);
+    const err = (code) => {
+      if (this._fault === 'err') { code = 'EINTERNAL'; }
+      this._sendFrame([FRAME_KIND.ERR, seq, verb, code]);
+    };
+    switch (verb) {
+      case 'PING': return ok();
+      case 'ID': return ok('M5Atom-Serial-Switch-Sensor (mock)', '0.1', 'MOCKSERIAL01');
+      case 'STOP':
+        if (!this._streaming) return err('ESTATE');
+        this._streaming = false; return ok();
+      case 'CFG':
+        if (args[0] === 'PERIOD_US') {
+          if (args.length > 1) this._periodUs = args[1];
+          return ok(this._periodUs);
+        }
+        return err('EARG');
+      case 'SUB': return ok();
+      case 'START':
+        if (this._streaming) return err('ESTATE');
+        this._streaming = true; return ok();
+      case 'GET':
+        if (args[0] === 'led0') return ok(this._lastRgb || new Uint8Array([0, 0, 0]));
+        return err('ENOCH');
+      case 'SET':
+        if (args[0] === 'led0') { this._lastRgb = args[1]; return ok(); }
+        return err('ENOCH');
+      default:
+        return err('ECMD');
+    }
+  }
+
+  _tick() {
+    if (this._fault === 'stall') return; // simulate a device that stopped sampling
+    if (!this._streaming) return;
+    const nowMs = performance.now() - this._t0;
+    if (!this._lastSampleMs || nowMs - this._lastSampleMs >= this._periodUs / 1000) {
+      this._lastSampleMs = nowMs;
+      // Simulate presses: on for ~600ms every ~2.5s.
+      const cyclePos = nowMs % 2500;
+      this._pressed = cyclePos < 600;
+      let flags = 0;
+      if (this._fault === 'drop' && Math.random() < 0.1) flags = 1;
+      this._mockSeq = (this._mockSeq || 0) + 1;
+      this._sendFrame([FRAME_KIND.DATA, this._mockSeq, Math.round(nowMs * 1000), 'btn0', this._pressed, flags]);
+    }
+  }
+
+  async close() { clearInterval(this._loopTimer); }
+}
+
+boot();
+</script>
+</body>
+</html>
