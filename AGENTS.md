@@ -29,7 +29,8 @@ This project uses **Simplified Technical English**. Follow these rules in every 
 ## Project summary
 
 This project builds firmware for the M5Stack AtomS3 Lite board (ESP32-S3). The device connects
-to a computer by USB. The computer sends commands. The device sends back sensor data. See
+to a computer by USB. The computer sends commands. The device sends back sensor data: the state
+of a built-in push button, and distance from an ultrasonic sensor wired to the Grove port. See
 `docs/00-overview.md` for the full description.
 
 ## Documents

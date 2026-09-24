@@ -49,7 +49,10 @@ Reports counters about the device's operation, for diagnosis.
 | Direction | Verb | Arguments |
 |---|---|---|
 | Command | `STAT` | None |
-| Response, success | `OK` | `uptime_us` (unsigned integer), `frames_rx` (unsigned integer), `frames_tx` (unsigned integer), `crc_errors` (unsigned integer), `samples_dropped` (unsigned integer), `log_lines_dropped` (unsigned integer) |
+| Response, success | `OK` | `uptime_us` (unsigned integer), `frames_rx` (unsigned integer), `frames_tx` (unsigned integer), `crc_errors` (unsigned integer), `samples_dropped` (unsigned integer), `log_lines_dropped` (unsigned integer), `ranging_timeouts` (unsigned integer) |
+
+`ranging_timeouts` counts every ranging cycle that finished with no echo detected before the
+timeout in `main/ultrasonic.c`. See `docs/12-hardware-abstraction.md`.
 
 ### RST
 
@@ -74,16 +77,21 @@ correctly.
 
 ### GET
 
-Reads the current value of one channel, or every channel.
+Reads the current value of one channel, or every channel. For `dist0`, this triggers one complete
+ranging cycle and blocks until it completes or times out; see
+`docs/06-channel-model-and-types.md`.
 
 | Direction | Verb | Arguments |
 |---|---|---|
 | Command, one channel | `GET` | `channel` (text) |
 | Command, all channels | `GET` | `"*"` |
-| Response, one channel | `OK` | `value` (the channel's declared type) |
-| Response, all channels, one per channel | `ROW` | `channel` (text), `value` (the channel's declared type) |
+| Response, one channel | `OK` | `value` (the channel's declared type, or `null`) |
+| Response, all channels, one per channel | `ROW` | `channel` (text), `value` (the channel's declared type, or `null`) |
 | Response, all channels, end of list | `OK` | `count` (unsigned integer) |
 | Response, unknown channel | `ERR` | `ENOCH` |
+
+Example: `GET dist0` while an object sits 30 cm from the sensor returns `[1, seq, "GET", 300]` — a
+value in millimeters. `GET dist0` with nothing in range returns `[1, seq, "GET", null]`.
 
 ### SET
 
@@ -125,8 +133,21 @@ Configuration keys:
 | `ENCODING` | text | The byte format used for all frames | `CBOR` |
 
 There is no key to configure how a channel cleans up its own raw signal, such as a debounce
-window. That is a device-internal decision, never a wire setting. See
-`docs/12-hardware-abstraction.md`.
+window, or how often `dist0` can physically produce a new reading. That is a device-internal
+decision, never a wire setting. See `docs/12-hardware-abstraction.md`.
+
+`PERIOD_US`'s minimum, 1,000, was chosen for `btn0`. It is not raised for `dist0`, because
+`dist0`'s own physical timing already self-limits: one ranging cycle needs at least 50
+milliseconds between triggers (see `docs/12-hardware-abstraction.md`). Setting a shorter
+`PERIOD_US` does not error; the device just cannot honor it while `dist0` is subscribed.
+
+**Subscribing `dist0` alongside another channel slows both down together.** Every subscribed
+channel is sampled from the same periodic callback, once per `PERIOD_US` tick, in one pass; see
+`main/app_stream.c`. `dist0`'s read blocks that pass for up to its own minimum cycle time. This
+means `btn0`, if subscribed at the same time as `dist0`, is also only sampled about as often as
+`dist0` allows — not at `btn0`'s own faster native rate. Subscribe `dist0` on its own streaming
+session, at a period of 50,000 or more, to get `dist0` samples at a predictable rate without this
+effect; keep `dist0` unsubscribed on a session that needs `btn0` at a fast, undelayed rate.
 
 `ENCODING` accepts only `CBOR` in this version. This key exists so a future, different byte
 format can be selected later, without changing the command that selects it. See

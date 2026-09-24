@@ -1,6 +1,7 @@
 #include "channels.h"
 #include "sensor_button.h"
 #include "led.h"
+#include "ultrasonic.h"
 #include "esp_timer.h"
 #include <string.h>
 
@@ -49,12 +50,24 @@ static int set_led0(CborValue *val)
     return (led_set_rgb(rgb[0], rgb[1], rgb[2]) == ESP_OK) ? 0 : ERR_RANGE;
 }
 
+static esp_err_t get_dist0(CborEncoder *enc)
+{
+    uint32_t mm = 0;
+    bool valid = false;
+    ultrasonic_measure_mm(&mm, &valid);
+    if (!valid) {
+        return cbor_to_esp(cbor_encode_null(enc));
+    }
+    return cbor_to_esp(cbor_encode_uint(enc, mm));
+}
+
 static const channel_def_t s_channels[] = {
     { "btn0", "bool", "RO", get_btn0, NULL },
     { "btn0_cnt", "uint", "RO", get_btn0_cnt, NULL },
     { "btn0_us", "uint", "RO", get_btn0_us, NULL },
     { "led0", "bytes", "RW", get_led0, set_led0 },
     { "uptime_us", "uint", "RO", get_uptime_us, NULL },
+    { "dist0", "uint", "RO", get_dist0, NULL },
 };
 
 #define CHANNEL_COUNT (sizeof(s_channels) / sizeof(s_channels[0]))

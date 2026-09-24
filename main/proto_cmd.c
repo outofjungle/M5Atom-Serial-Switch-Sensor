@@ -124,13 +124,14 @@ static void handle_stat(uint32_t seq, CborValue *it)
     usb_cdc_stats_t s;
     usb_cdc_get_stats(&s);
     CborEncoder enc, arr;
-    resp_begin(&enc, &arr, FRAME_KIND_OK, seq, "STAT", 9);
+    resp_begin(&enc, &arr, FRAME_KIND_OK, seq, "STAT", 10);
     cbor_encode_uint(&arr, (uint64_t)esp_timer_get_time());
     cbor_encode_uint(&arr, s.frames_rx);
     cbor_encode_uint(&arr, s.frames_tx);
     cbor_encode_uint(&arr, s.crc_errors);
     cbor_encode_uint(&arr, s.samples_dropped);
     cbor_encode_uint(&arr, s.log_lines_dropped);
+    cbor_encode_uint(&arr, s.ranging_timeouts);
     resp_send(&enc, &arr);
 }
 

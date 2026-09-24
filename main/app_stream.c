@@ -23,6 +23,17 @@ static uint32_t next_seq(void)
     return seq;
 }
 
+// dist0's get() (ultrasonic_measure_mm(), via channels.c) blocks this
+// esp_timer callback for up to tens of milliseconds when subscribed,
+// unlike every other channel's near-instant read. esp_timer dispatches
+// every periodic callback from one shared system task by default, so
+// blocking it here would normally risk delaying unrelated timers
+// elsewhere in the firmware. This firmware has no other periodic
+// esp_timer callback -- no Wi-Fi, no BLE, nothing else registers one --
+// so there is nothing else to delay, and keeping this design (instead of
+// moving to a dedicated FreeRTOS task, as a board without that guarantee
+// would need) avoids restructuring an already-working module. See
+// docs/00-overview.md's design choices table.
 static void send_sample(const channel_def_t *ch)
 {
     uint32_t flags = usb_cdc_take_pending_drop() ? FLAG_DROP : 0;

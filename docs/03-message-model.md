@@ -60,7 +60,9 @@ Example, showing each frame's array:
 1. Command: `[0, 1, "CAPS"]`
 2. Response: `[3, 1, "CAPS", "btn0", "bool", "RO"]`
 3. Response: `[3, 1, "CAPS", "btn0_cnt", "uint", "RO"]`
-4. Response: `[1, 1, "CAPS", 2]` — end of the list, row count `2`
+4. Response: `[1, 1, "CAPS", 2]` — end of the list, row count `2` (a real response from this project
+   lists every channel in `docs/06-channel-model-and-types.md`; this example shortens the list for
+   readability)
 
 The host reads `ROW` frames until it reads the matching `OK` frame. The host then knows the
 answer is complete.
@@ -77,7 +79,7 @@ answer is complete.
 | 2 | Sequence number | unsigned integer | Chosen by the device. Counts up with each sample sent. Wraps at 65535. |
 | 3 | Timestamp | unsigned integer | Microseconds since the device started. |
 | 4 | Channel name | text | The channel this sample comes from. |
-| 5 | Value | the channel's declared type | The reading. See `docs/06-channel-model-and-types.md`. |
+| 5 | Value | the channel's declared type, or `null` | The reading, or `null` if the device has no reading right now. See `docs/06-channel-model-and-types.md`. |
 | 6 | Flags | unsigned integer | A bit field. See `docs/06-channel-model-and-types.md` and `docs/08-flow-control-and-backpressure.md`. |
 
 ## Why a value needs no separate type field

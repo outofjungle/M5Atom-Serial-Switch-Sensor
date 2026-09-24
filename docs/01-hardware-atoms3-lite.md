@@ -22,14 +22,14 @@ This table lists every pin used or made available by this board.
 | G41 | Push button | Pulled high when not pressed. Reads low when pressed. Needs the internal pull-up resistor turned on. |
 | G35 | RGB LED data line | Chip type WS2812C-2020. One LED. |
 | G4 | Infrared (IR) transmitter | Not used in this version of the firmware. |
-| G1 | Grove port, pin 1 | Can act as General Purpose Input/Output (GPIO), Inter-Integrated Circuit (I2C), or Universal Asynchronous Receiver/Transmitter (UART). |
-| G2 | Grove port, pin 2 | Same options as G1. |
+| G1 | Grove port, pin 1 (white wire) | Can act as General Purpose Input/Output (GPIO), Inter-Integrated Circuit (I2C), or Universal Asynchronous Receiver/Transmitter (UART). |
+| G2 | Grove port, pin 2 (yellow wire) | Same options as G1. |
 | G5 | Header pin | Also usable as an Analog-to-Digital Converter (ADC) input, ADC unit 1. |
 | G6 | Header pin | Also usable as ADC input, ADC unit 1. |
 | G7 | Header pin | Also usable as ADC input, ADC unit 1. |
 | G8 | Header pin | Also usable as ADC input, ADC unit 1. |
-| G38 | Header pin | General purpose. |
-| G39 | Header pin | General purpose. |
+| G38 | Header pin | General purpose. Used as Echo for the ultrasonic distance sensor. See "Ultrasonic sensor" below. |
+| G39 | Header pin | General purpose. Used as Trig for the ultrasonic distance sensor. See "Ultrasonic sensor" below. |
 | G43 | UART0 transmit | Not connected to any external header on this board. |
 | G44 | UART0 receive | Not connected to any external header on this board. |
 
@@ -39,6 +39,67 @@ Pins G1, G2, G5, G6, G7, and G8 connect to ADC unit 1 on the ESP32-S3 chip. A fu
 can read an analog voltage on any of these pins. This project's firmware does not use the ADC in
 its first version. `docs/06-channel-model-and-types.md` describes how an ADC channel will be
 named and typed when one is added.
+
+## Ultrasonic sensor
+
+This project reads an ultrasonic distance sensor: a Keyestudio KS0504 module, sold under the name
+"Keyestudio SR01 Ultrasonic sensor" (an HC-SR04-compatible distance sensor, built around a CS100A
+chip). Its datasheet is saved in this repository at `docs/KS0504-ultrasonic-sensor-datasheet.pdf`;
+fetch a fresh copy from `https://docs.keyestudio.com/_/downloads/KS0504/en/latest/pdf/` if it goes
+missing.
+
+### Wiring
+
+The sensor's Trig and Echo signal lines connect to the general-purpose header pins G39 and G38,
+not the Grove port:
+
+| Sensor pin | Board pin |
+|---|---|
+| VCC | Not on this header -- see the note below |
+| GND | Not on this header -- see the note below |
+| Trig | G39 |
+| Echo | G38 |
+
+G38 and G39 carry signal only. Where VCC and GND are actually wired from is not yet stated in
+this document; update this table once that is settled, since it changes the voltage guidance
+below. Until then, the guidance assumes the worst case (5V).
+
+### Voltage: a level shifter is likely required on Echo
+
+The sensor's datasheet states it is "compatible with 3.3V and 5V", with working voltage "DC
+3.3V-5V". If VCC ends up powered at 5V (from the Grove port's 5V pin, or another 5V source), the
+sensor's Echo output should be assumed to swing to 5V as well.
+
+The ESP32-S3's GPIO pins are rated for 3.3V signals. **Unless VCC is confirmed to be powered at
+3.3V, a voltage divider or logic level shifter is required on the Echo line (G38) before
+connecting it to the board.** A simple two-resistor divider
+(for example, 1 kiloohm (kΩ) in series, 2 kΩ to ground, taken from the sensor's Echo wire to G38)
+brings a 5V signal down to a safe level. Confirm the actual voltage on G38 with a multimeter
+before first power-on if in doubt. The Trig line (G39) does not need this protection: the
+ESP32-S3 drives it at 3.3V, and this sensor reads a 3.3V high signal as a valid logic '1'.
+
+This project's firmware does not check or compensate for supply voltage or logic levels in any
+way. Getting this right is entirely a wiring-level concern.
+
+### Ranging distance and timing
+
+These figures come from `docs/KS0504-ultrasonic-sensor-datasheet.pdf`.
+
+| Item | Value |
+|---|---|
+| Minimum range | Less than 4 centimeters (cm) is the sensor's stated blind zone; `main/ultrasonic.c` treats readings below 4 cm as unreliable. |
+| Maximum range | 3 meters (m) |
+| Measuring angle | Less than 15 degrees |
+| Trigger pulse | A high pulse on Trig, at least 10 microseconds (µs) long |
+| Echo pulse | High for the round-trip time of the ultrasonic pulse; stays low, then times out, if nothing is in range |
+| Working frequency | 40 kilohertz (kHz) |
+| Working current | 50 to 100 milliamps (mA) |
+
+`main/ultrasonic.c` computes distance from the Echo pulse width. See
+`docs/06-channel-model-and-types.md` for the channel that reports this value, and
+`docs/12-hardware-abstraction.md` for the timing constants this module owns privately. Its
+retrigger guard time matches the 50-millisecond delay the datasheet's own reference Arduino code
+uses between readings.
 
 ## USB wiring
 

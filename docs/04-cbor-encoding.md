@@ -125,3 +125,22 @@ The sample frame's content, from `docs/03-message-model.md`, is the array
 This example is 20 bytes on the wire, compared to about 30 bytes for the earlier, text-based
 design considered for this project. `docs/08-flow-control-and-backpressure.md` uses this frame
 size in its buffer-filling estimates.
+
+## Worked example: a dist0 sample frame
+
+The sample frame's content is the array `[4, 12, 245000, "dist0", 1523, 0]`: `DATA` kind, sequence
+number 12, timestamp 245000 microseconds, channel `dist0`, value `1523` (millimeters), flags `0`.
+
+| Step | Bytes (hexadecimal) | Length |
+|---|---|---|
+| 1. CBOR payload | `86 04 0C 1A 00 03 BD 08 65 64 69 73 74 30 19 05 F3 00` | 18 bytes |
+| 2. Framed payload (payload + CRC `B074`) | `86 04 0C 1A 00 03 BD 08 65 64 69 73 74 30 19 05 F3 00 B0 74` | 20 bytes |
+| 3. COBS-encoded | `05 86 04 0C 1A 0D 03 BD 08 65 64 69 73 74 30 19 05 F3 03 B0 74` | 21 bytes |
+| 3. Full wire frame (with trailing `00`) | `05 86 04 0C 1A 0D 03 BD 08 65 64 69 73 74 30 19 05 F3 03 B0 74 00` | 22 bytes |
+
+Note the value `1523` needs 3 bytes on the wire (`19 05 F3`, CBOR's 2-byte unsigned-int form,
+major type 0, additional info 25): any `dist0` reading above 255 crosses CBOR's 1-byte form,
+unlike `btn0`'s boolean, which is always 1 byte. When the ultrasonic sensor sees no echo before
+its timeout, `dist0` reports the CBOR value `null` (1 byte, `0xF6`) instead of an unsigned
+integer: the same frame with `19 05 F3` (3 bytes) replaced by `F6` (1 byte), and the array, CRC,
+and COBS bytes recomputed accordingly. See `docs/06-channel-model-and-types.md`.

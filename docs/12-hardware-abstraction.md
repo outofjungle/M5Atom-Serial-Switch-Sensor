@@ -31,7 +31,7 @@ was removed. The button's debounce logic did not change — only where its const
 from a value readable and writable over the wire to a private constant inside the one file that
 owns the hardware it conditions.
 
-## The two channels in this version
+## The channels in this version
 
 ### `btn0` — needs conditioning
 
@@ -47,14 +47,32 @@ command's bytes go straight to the LED driver, with no filtering step of any kin
 simple end of the same rule. A channel that needs no conditioning still follows the rule — its
 implementation states that plainly, rather than defending against a case that cannot happen.
 
-## Adding a third channel
+### `dist0` — needs conditioning
+
+`main/ultrasonic.c` owns the ultrasonic sensor on G39 (Trig) and G38 (Echo). It
+privately holds three timing constants, none of them readable or writable over the wire:
+
+| Constant | Meaning | Why it is private, not a `CFG` key |
+|---|---|---|
+| `US_TRIG_PULSE_US` | How long Trig is held high to start one ranging cycle | Fixed by the sensor's own datasheet minimum (10 µs); there is no reason a host would ever need a different value. |
+| `US_ECHO_TIMEOUT_US` | How long to wait for the Echo pulse to end before giving up | Set from the sensor's maximum range (3 meters, per `docs/KS0504-ultrasonic-sensor-datasheet.pdf`) plus margin; changing it would change what `null` means for `dist0`, which is a channel-behavior decision, not a protocol setting. |
+| `US_RETRIGGER_GUARD_US` | The minimum time to wait after one ranging cycle ends before starting the next | Needed so ultrasonic ringing from one pulse has settled before the next trigger. Set to 50 milliseconds, matching the delay the sensor's own datasheet reference code uses between readings. This is exactly the same kind of constant `BTN_DEBOUNCE_US` is for `btn0`: a fixed value tuned to one specific piece of hardware, owned by the one file that talks to it. |
+
+These constants, and the GPIO edge-timestamp interrupt handler that measures the Echo pulse
+width, are the device-internal work this rule describes -- the same pattern
+`sensor_button.c` already uses for `btn0`'s own GPIO interrupt, applied to a second piece of
+hardware. `dist0`'s use of `null` for a failed or out-of-range reading, described in
+`docs/06-channel-model-and-types.md`, is also part of this device-internal decision: the sensor,
+not the wire protocol, decides when a ranging cycle counts as having failed.
+
+## Adding a fourth channel
 
 State two things, and nothing more:
 
 1. Does this channel's raw signal need conditioning? If yes, name the approach (a debounce window,
    an averaging filter, a minimum-change threshold — whatever the specific hardware needs) and
    keep its constants private to the module that owns that hardware, the way `sensor_button.c`
-   does.
+   and `ultrasonic.c` do.
 2. If it needs none, say so in one sentence, the way this document does for `led0`.
 
 Nothing about the command set, the message model, or the frame encoding changes to add a channel

@@ -80,3 +80,23 @@ builds the firmware.
 | 29 | Power on normally, with the button untouched. | Exactly one port appears. `CFG` has no `DEBOUNCE_US` key: sending `CFG DEBOUNCE_US` returns `ERR`, code `EARG`. |
 | 30 | Send `GET btn0_cnt`. Power the device off and on again while holding the button through the entire boot sequence, then send `GET btn0_cnt` again. | Two ports appear this time (`docs/09-host-integration.md`), and log text is visible on the second one. `btn0_cnt` reads the same value as before the restart — holding the button for this gesture does not count as a press. |
 | 31 | Press the button 10 times quickly (as in test 12), on firmware built after the debounce change. | `btn0_cnt` still increases by exactly 10. The debounce behavior is unchanged; only who owns its constant moved, from `CFG` to `main/sensor_button.c`. See `docs/12-hardware-abstraction.md`. |
+
+## Ultrasonic sensor tests
+
+| Step | Action | Expected result |
+|---|---|---|
+| 32 | Hold a flat object about 30 cm from the sensor. Send `GET dist0`. | Response is `OK`, with a value near 300 (millimeters), within the sensor's stated accuracy. |
+| 33 | Point the sensor at open air, well past its 3-meter maximum range, or with nothing in front of it. Send `GET dist0`. | Response is `OK`, value `null`. `STAT`'s `ranging_timeouts` counter increases by 1. |
+| 34 | Move an object slowly from 5 cm to 250 cm in front of the sensor while sending `GET dist0` repeatedly. | Returned values track the object's approximate distance, increasing as it moves away. |
+| 35 | Hold an object closer than 4 cm to the sensor. Send `GET dist0`. | Response is `OK`, with either a small value or `null`; behavior this close is inside the sensor's stated blind zone and is not required to be exact. Record what is observed. |
+| 36 | Send `CFG PERIOD_US 50000`, `SUB dist0`, `START` (with no other channel subscribed). | `DATA` frames for `dist0` arrive about 20 times per second. |
+| 37 | With `dist0` streaming alone (test 36) still running, also `SUB btn0`, without changing `PERIOD_US`. Press the button while watching `btn0` frames arrive. | `btn0` frames now arrive no faster than about 20 times per second too, not at whatever rate a short `PERIOD_US` alone would otherwise give `btn0`. See `docs/05-command-reference.md`. Send `UNSUB dist0` to confirm `btn0` returns to its normal rate once `dist0` is removed from the subscription list. |
+| 38 | Send two `GET dist0` commands back to back, as fast as the host can send them. | Both return a valid response (a value or `null`), with no `ERR`. The second command's response arrives no sooner than the retrigger guard time set in `main/ultrasonic.c` after the first command was issued. |
+
+## Hardware safety check
+
+Do this test before any other test in this document, on first power-on after wiring the sensor.
+
+| Step | Action | Expected result |
+|---|---|---|
+| 39 | Before first power-on, measure the voltage on G38 (Echo) while the sensor is powered and idle, and during a ranging pulse. | The voltage stays within the ESP32-S3's safe input range at all times. If it does not, stop and fix the voltage divider or level shifter on the Echo line before proceeding with any other test. See `docs/01-hardware-atoms3-lite.md`. |

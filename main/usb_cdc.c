@@ -213,6 +213,13 @@ void usb_cdc_note_crc_error(void)
     portEXIT_CRITICAL(&s_stats_mux);
 }
 
+void usb_cdc_note_ranging_timeout(void)
+{
+    portENTER_CRITICAL(&s_stats_mux);
+    s_stats.ranging_timeouts++;
+    portEXIT_CRITICAL(&s_stats_mux);
+}
+
 void usb_cdc_get_stats(usb_cdc_stats_t *out)
 {
     portENTER_CRITICAL(&s_stats_mux);

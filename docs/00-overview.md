@@ -12,15 +12,19 @@ Universal Serial Bus (USB).
 The first version of the device reports the state of one push button. The design must also work
 for future boards with more sensors. A later board may add temperature sensors, motion sensors,
 or several buttons. The command set in this project must not need a redesign when that happens.
+A second version adds exactly such a sensor: an ultrasonic distance sensor, wired to the Grove
+port, with no change to the command set. See `docs/01-hardware-atoms3-lite.md` and
+`docs/06-channel-model-and-types.md`.
 
 ## Scope
 
 This version of the project does these things:
 
 1. It reports the state of the built-in push button.
-2. It lets the connected computer read the button state on request.
-3. It lets the connected computer turn on automatic reporting at a fixed time interval.
-4. It checks every message for transmission errors.
+2. It reports distance, read from an ultrasonic distance sensor wired to the Grove port.
+3. It lets the connected computer read the button state or the distance on request.
+4. It lets the connected computer turn on automatic reporting at a fixed time interval.
+5. It checks every message for transmission errors.
 
 ## Out of scope
 
@@ -68,6 +72,7 @@ This section defines each term. Every other document in this project uses these 
 | `10-build-and-flash.md` | How to build the firmware and load it onto the device. |
 | `11-test-plan.md` | The tests used to check that the firmware works correctly. |
 | `12-hardware-abstraction.md` | The rule that the device, not the wire protocol, owns hardware-specific signal conditioning. |
+| `KS0504-ultrasonic-sensor-datasheet.pdf` | The ultrasonic sensor's own datasheet, from the manufacturer. Not a document this project wrote; kept here for reference. See `docs/01-hardware-atoms3-lite.md`. |
 
 ## Design choices and the reasons for them
 
@@ -82,6 +87,7 @@ reason.
 | USB device type | Two virtual serial ports (see `docs/02-usb-device-and-descriptors.md`) | Splitting the data channel from the log channel keeps debug text out of the data stream. Using the standard serial port class also lets a browser reach the device through the Web Serial API. |
 | Browser access | The Web Serial API, not the WebUSB API | The device's two ports use the standard USB serial port class. On every major operating system, that class is claimed by the operating system's own serial driver before a browser tab can reach it directly. The Web Serial API is built to work through that driver. See `docs/09-host-integration.md`. |
 | Command design | Verbs work the same way for every channel | A future board can add a channel without adding a new verb. |
+| Periodic sampling, with `dist0` added | Kept as an `esp_timer` callback, not moved to a dedicated FreeRTOS task | `dist0`'s read blocks for up to tens of milliseconds, unlike every other channel's near-instant read, which would normally argue for a dedicated task instead of the shared `esp_timer` callback dispatch task. This firmware registers no other periodic `esp_timer` callback -- no Wi-Fi, no BLE -- so there is nothing else for that blocking to delay. See `main/app_stream.c` and `docs/12-hardware-abstraction.md`. |
 
 ## Who reviews this
 

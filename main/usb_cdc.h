@@ -42,6 +42,10 @@ bool usb_cdc_take_pending_drop(void);
 // docs/07-error-codes.md.
 void usb_cdc_note_crc_error(void);
 
+// Counts one ranging cycle that finished with no echo detected before
+// ultrasonic.c's timeout. See docs/12-hardware-abstraction.md.
+void usb_cdc_note_ranging_timeout(void);
+
 // The device's USB serial number string, built from the eFuse MAC. See
 // docs/02-usb-device-and-descriptors.md.
 const char *usb_cdc_get_serial(void);
@@ -52,6 +56,7 @@ typedef struct {
     uint32_t crc_errors;
     uint32_t samples_dropped;
     uint32_t log_lines_dropped;
+    uint32_t ranging_timeouts;
 } usb_cdc_stats_t;
 
 void usb_cdc_get_stats(usb_cdc_stats_t *out);

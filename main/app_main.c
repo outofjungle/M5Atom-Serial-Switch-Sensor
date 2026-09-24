@@ -6,6 +6,7 @@
 #include "app_config.h"
 #include "sensor_button.h"
 #include "led.h"
+#include "ultrasonic.h"
 #include "usb_cdc.h"
 #include "app_stream.h"
 
@@ -27,6 +28,7 @@ void app_main(void)
     ESP_ERROR_CHECK(app_config_init());
     ESP_ERROR_CHECK(led_init());
     ESP_ERROR_CHECK(sensor_button_init());
+    ESP_ERROR_CHECK(ultrasonic_init());
 
     // Holding the button through boot enables the debug (log) port,
     // CDC1. Read right after sensor_button_init() sets the true baseline

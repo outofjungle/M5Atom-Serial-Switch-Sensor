@@ -52,8 +52,20 @@
   body {
     padding: 16px;
     padding-bottom: 32px;
-    max-width: 900px;
+    max-width: 1400px;
     margin: 0 auto;
+  }
+  .main-layout { display: flex; gap: 16px; align-items: stretch; }
+  .col-graphs { flex: 0 0 60%; max-width: 60%; min-width: 0; }
+  .col-side { flex: 1 1 40%; max-width: 40%; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  #ledCard { flex: 0 0 auto; }
+  #logCard { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 240px; }
+  #logCard #log { flex: 1; height: auto; min-height: 0; }
+  @media (max-width: 900px) {
+    .main-layout { flex-direction: column; align-items: normal; }
+    .col-graphs, .col-side { max-width: 100%; }
+    #logCard { min-height: 0; }
+    #logCard #log { flex: none; height: 200px; }
   }
   /* Some elements below (.device-id, .frozen-note) set display:flex as a
      class rule, which ties in CSS specificity with the browser's default
@@ -110,14 +122,18 @@
   @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
 
   /* Graph card */
-  #graphCanvas { width: 100%; height: 160px; display: block; border-radius: 6px; }
+  #graphCanvas, #distGraphCanvas { width: 100%; height: 160px; display: block; border-radius: 6px; }
   .graph-readout { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; flex-wrap: wrap; gap: 8px; }
   .state-badge { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; }
   .state-badge.pressed { color: var(--series-1); }
   .state-badge.released { color: var(--text-muted); }
   .stat-strip { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
   .stat-strip b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
-  #graphOverlay {
+
+  /* Distance card */
+  .live-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .live-value.no-reading { color: var(--text-muted); }
+  #graphOverlay, #distGraphOverlay {
     position: relative;
   }
   .frozen-note {
@@ -127,21 +143,6 @@
   }
 
   /* LED card */
-  .hue-slider {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 16px; border-radius: 999px; outline: none;
-    background: linear-gradient(to right,
-      hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%), hsl(90,100%,50%),
-      hsl(120,100%,50%), hsl(150,100%,50%), hsl(180,100%,50%), hsl(210,100%,50%),
-      hsl(240,100%,50%), hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%), hsl(360,100%,50%));
-  }
-  .hue-slider::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
-    background: #fff; border: 2px solid #0006; cursor: pointer;
-  }
-  .hue-slider::-moz-range-thumb {
-    width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid #0006; cursor: pointer;
-  }
   .brightness-slider {
     -webkit-appearance: none; appearance: none;
     width: 100%; height: 12px; border-radius: 999px; outline: none;
@@ -154,14 +155,15 @@
   .brightness-slider::-moz-range-thumb {
     width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #0006; cursor: pointer;
   }
-  .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
   .swatch {
-    width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border);
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border);
     cursor: pointer; padding: 0;
   }
-  .swatch.off { background: var(--surface-1) !important; display: flex; align-items: center; justify-content: center; font-size: 14px; }
-  .led-preview-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
-  #ledPreview { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border); flex: none; }
+  .swatch.selected { border-color: var(--text-primary); }
+  .swatch.off { background: var(--surface-1) !important; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .led-preview-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  #ledPreview { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); flex: none; }
   #ledPreviewText { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
   /* Log card */
@@ -172,7 +174,7 @@
   #log div { white-space: pre-wrap; word-break: break-word; padding: 1px 0; }
   #log div.err { color: var(--critical); }
   #log div.warn { color: var(--warning); }
-  .log-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
   #topBanner {
     background: var(--critical); color: #fff; padding: 10px 14px; border-radius: 8px;
@@ -202,8 +204,14 @@
   </div>
 </header>
 
+<div class="main-layout">
+<div class="col-graphs">
+
 <div class="card" id="graphCard">
-  <h2>Button (btn0)</h2>
+  <div class="card-head">
+    <h2 style="margin:0;">Button (btn0)</h2>
+    <label class="checkbox-row"><input type="checkbox" id="btn0StreamCheck" checked disabled> Stream</label>
+  </div>
   <div id="graphOverlay">
     <canvas id="graphCanvas"></canvas>
     <div class="frozen-note" id="frozenNote" hidden>Disconnected — showing last known state</div>
@@ -217,15 +225,6 @@
         <option value="30">30 s</option>
       </select>
     </label>
-    <label class="field">Sample period
-      <select id="periodSelect">
-        <option value="1000">1000 µs (1 kHz)</option>
-        <option value="5000">5000 µs (200 Hz)</option>
-        <option value="10000" selected>10000 µs (100 Hz)</option>
-        <option value="50000">50000 µs (20 Hz)</option>
-        <option value="100000">100000 µs (10 Hz)</option>
-      </select>
-    </label>
   </div>
   <div class="stat-strip">
     <span>samples <b id="statFrames">0</b></span>
@@ -236,12 +235,39 @@
   <div class="hint" id="modeHint">Only the periodic sample rate above affects what you see — the firmware's on-change mode is accepted but not implemented by the sampler yet.</div>
 </div>
 
+<div class="card" id="distCard">
+  <div class="card-head">
+    <h2 style="margin:0;">Distance (dist0)</h2>
+    <label class="checkbox-row"><input type="checkbox" id="distStreamCheck" checked disabled> Stream</label>
+  </div>
+  <div id="distGraphOverlay">
+    <canvas id="distGraphCanvas"></canvas>
+    <div class="frozen-note" id="distFrozenNote" hidden>Disconnected — showing last known state</div>
+  </div>
+  <div class="graph-readout">
+    <span class="live-value no-reading" id="distLiveValue">—</span>
+  </div>
+  <div class="stat-strip">
+    <span>dist0 samples <b id="statDistFrames">0</b></span>
+    <span>no-reading <b id="statDistNulls">0</b></span>
+    <span title="From the device's own STAT command, polled every 2s while connected.">
+      device: ranging timeouts <b id="statDevTimeouts">—</b> · crc err <b id="statDevCrc">—</b>
+    </span>
+  </div>
+  <div class="hint">One ranging cycle can take tens of milliseconds, so streaming both channels
+    together caps <code>btn0</code>'s own sample rate to about how often <code>dist0</code> can
+    physically produce a reading — see <code>docs/05-command-reference.md</code>. Uncheck this to
+    keep the button graph above at its full configured rate. The Y axis below uses a logarithmic
+    scale, since distance readings can span two orders of magnitude.</div>
+</div>
+
+</div>
+<div class="col-side">
+
 <div class="card" id="ledCard">
   <h2>LED (led0)</h2>
-  <label class="field">Hue</label>
-  <input type="range" min="0" max="359" value="200" id="hueSlider" class="hue-slider">
   <div class="swatches" id="swatchRow"></div>
-  <label class="field" style="margin-top:14px;">Brightness</label>
+  <label class="field" style="margin-top:10px;">Brightness</label>
   <input type="range" min="0" max="100" value="20" id="brightnessSlider" class="brightness-slider">
   <div class="led-preview-row">
     <div id="ledPreview"></div>
@@ -249,12 +275,15 @@
   </div>
 </div>
 
-<div class="card">
-  <div class="log-head">
+<div class="card" id="logCard">
+  <div class="card-head">
     <h2 style="margin:0;">Activity</h2>
     <label class="checkbox-row"><input type="checkbox" id="verboseCheck"> Verbose</label>
   </div>
   <div id="log"></div>
+</div>
+
+</div>
 </div>
 
 <script>
@@ -620,7 +649,15 @@ class Link extends EventTarget {
   _attach() {
     this.writer = this.port.writable.getWriter();
     this.reader = this.port.readable.getReader();
-    this._readLoop(); // not awaited: runs for the life of the connection
+    // Kept (not just fired) so close() can wait for the loop to actually
+    // observe cancellation and return, before releasing the reader's
+    // lock. Releasing the lock -- or closing the port -- while a read()
+    // call is still outstanding on it is a real Web Serial API failure
+    // mode: it produced "The port is already open" on a subsequent
+    // connect attempt during testing against real hardware (on the
+    // sibling M5Stick-USB-Serial-Transport tool this code originated
+    // from). See close()'s comments.
+    this._readLoopDone = this._readLoop();
   }
 
   nextSeq() {
@@ -770,9 +807,16 @@ class Link extends EventTarget {
       entry.reject(new Error('link closed'));
     }
     this.pending.clear();
+    // Order matters. cancel() only requests cancellation; the pending
+    // reader.read() call inside _readLoop() must actually settle before
+    // the lock is released, or the port can be left in a state where
+    // close() rejects (silently, since it's wrapped below) without
+    // actually closing -- leaving the OS-level port locked for the next
+    // connection attempt.
     try { await this.reader.cancel(); } catch (e) {}
+    try { await this._readLoopDone; } catch (e) {}
     try { this.reader.releaseLock(); } catch (e) {}
-    try { this.writer.releaseLock(); } catch (e) {}
+    try { await this.writer.close(); } catch (e) { try { this.writer.releaseLock(); } catch (_e) {} }
     try { await this.port.close(); } catch (e) {}
   }
 }
@@ -785,7 +829,6 @@ const state = {
   conn: 'idle', // idle | requesting | connecting | connected | lost
   streaming: false,
   device: null, // { name, fwVersion, serial }
-  periodUs: 10000,
   hue: 200,
   sat: 1,
   brightness: 0.20,
@@ -795,10 +838,21 @@ const state = {
   btnNow: null,
   windowSec: 10,
   stats: { framesRx: 0, ratePerSec: 0, dropsSeen: 0, pressCount: 0, crcFail: 0, decodeFail: 0, lastErr: null },
+  btn0Streaming: false, // whether btn0 is currently SUB'd into this streaming session
+  distStreaming: false, // whether dist0 is currently SUB'd into this streaming session
+  distLast: { mm: null, valid: false },
+  distStats: { framesRx: 0, nullsSeen: 0 },
+  statDev: null, // last STAT response
 };
 
 let link = null;
 let connecting = false; // guards against a second connect() starting before the first finishes
+let statPollTimer = null;
+const STAT_POLL_MS = 2000;
+// No UI control for this: fixed at 10 Hz, sufficient for this
+// proof-of-concept. See docs/05-command-reference.md for what changes
+// this rate once dist0 is also subscribed.
+const FIXED_PERIOD_US = 100000;
 
 function loadPrefs() {
   try {
@@ -808,7 +862,6 @@ function loadPrefs() {
     if (typeof p.hue === 'number') state.hue = p.hue;
     if (typeof p.sat === 'number') state.sat = p.sat;
     if (typeof p.brightness === 'number') state.brightness = p.brightness;
-    if (typeof p.periodUs === 'number') state.periodUs = p.periodUs;
     if (typeof p.windowSec === 'number') state.windowSec = p.windowSec;
   } catch (e) { /* ignore malformed prefs */ }
 }
@@ -816,7 +869,7 @@ function savePrefs() {
   try {
     localStorage.setItem('m5atom-panel-prefs', JSON.stringify({
       hue: state.hue, sat: state.sat, brightness: state.brightness,
-      periodUs: state.periodUs, windowSec: state.windowSec,
+      windowSec: state.windowSec,
     }));
   } catch (e) { /* ignore (private browsing, quota) */ }
 }
@@ -840,6 +893,10 @@ const TRIM_EVERY = 64;
 let samplesSinceTrim = 0;
 
 function onSample(detail) {
+  if (detail.channel === 'dist0') {
+    onDistSample(detail);
+    return;
+  }
   if (detail.channel !== 'btn0') return;
   const value = !!detail.value;
   samples.push({ tUs: detail.tUs, value, flags: detail.flags });
@@ -862,6 +919,29 @@ function onSample(detail) {
 
   updateRate();
   updateReadout();
+}
+
+function onDistSample(detail) {
+  const valid = detail.value !== null;
+  const mm = valid ? detail.value : null;
+  state.distLast = { mm, valid };
+  state.distStats.framesRx++;
+  if (!valid) state.distStats.nullsSeen++;
+
+  distSamples.push({ tUs: detail.tUs, mm, valid, flags: detail.flags });
+  distAnchorDevUs = detail.tUs;
+  distAnchorHostMs = performance.now();
+
+  distSamplesSinceTrim++;
+  if (distSamplesSinceTrim >= TRIM_EVERY) {
+    distSamplesSinceTrim = 0;
+    const cutoff = detail.tUs - (state.windowSec + 5) * 1e6;
+    let dropCount = 0;
+    while (dropCount < distSamples.length - 1 && distSamples[dropCount].tUs < cutoff) dropCount++;
+    if (dropCount > 0) distSamples.splice(0, dropCount);
+  }
+
+  updateDistReadout();
 }
 
 let rateWindow = [];
@@ -930,6 +1010,12 @@ function drawGraph() {
   ctx.font = '11px system-ui, sans-serif';
   ctx.fillText('pressed', 4, yPressed - 4);
   ctx.fillText('released', 4, yReleased - 4);
+
+  if (!state.btn0Streaming) {
+    ctx.fillStyle = muted;
+    ctx.fillText('btn0 streaming is off — check "Stream" above', cssWidth / 2 - 100, cssHeight / 2);
+    return;
+  }
 
   if (rightUs === null || samples.length === 0) {
     ctx.fillStyle = muted;
@@ -1008,7 +1094,7 @@ function drawGraph() {
   }
 
   // Stall overlay: no sample for more than 3 periods.
-  if (prev && (rightUs - prev.tUs) > state.periodUs * 3) {
+  if (prev && (rightUs - prev.tUs) > FIXED_PERIOD_US * 3) {
     ctx.fillStyle = muted;
     ctx.fillText('no recent samples', cssWidth - 120, padTop + 12);
   }
@@ -1016,10 +1102,197 @@ function drawGraph() {
 
 function graphLoop() {
   drawGraph();
+  drawDistGraph();
   rafHandle = requestAnimationFrame(graphLoop);
 }
 function startGraphLoop() { if (!rafHandle) graphLoop(); }
 function stopGraphLoop() { if (rafHandle) { cancelAnimationFrame(rafHandle); rafHandle = null; } }
+
+/* =========================================================================
+ * S6b: Distance graph — a log-scale line/area chart of dist0. Log scale
+ * because readings span close to two orders of magnitude (tens of mm to
+ * thousands), where a linear axis would flatten everything below about
+ * 500mm into a few pixels. A null reading breaks the line rather than
+ * plotting as zero or as the axis minimum, and is shaded as a distinct
+ * "no reading" band, the same convention drawGraph() uses for DROP ticks.
+ * ========================================================================= */
+
+const DIST_RANGE_MIN_MM = 40;   // sensor's stated blind zone floor
+const DIST_RANGE_MAX_MM = 3000; // sensor's stated maximum range
+const DIST_LOG_MIN = Math.log10(DIST_RANGE_MIN_MM);
+const DIST_LOG_MAX = Math.log10(DIST_RANGE_MAX_MM);
+// A "1-2-5" style tick sequence, the conventional choice for a log axis,
+// clipped to the sensor's actual range.
+const DIST_GRIDLINES_MM = [50, 100, 200, 500, 1000, 2000, 3000]
+  .filter((mm) => mm >= DIST_RANGE_MIN_MM && mm <= DIST_RANGE_MAX_MM);
+
+const distSamples = []; // { tUs, mm, valid, flags }
+let distAnchorDevUs = null;
+let distAnchorHostMs = null;
+let distSamplesSinceTrim = 0;
+
+const distCanvas = document.getElementById('distGraphCanvas');
+const distCtx = distCanvas.getContext('2d');
+
+function resizeDistCanvas() {
+  const rect = distCanvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  distCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+  distCanvas.height = Math.max(1, Math.round(160 * dpr));
+  distCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(resizeDistCanvas).observe(distCanvas);
+
+function distCurrentRightEdgeUs() {
+  if (distAnchorDevUs === null) return null;
+  const elapsedMs = performance.now() - distAnchorHostMs;
+  return distAnchorDevUs + Math.max(0, elapsedMs) * 1000;
+}
+
+// yOf maps a distance in millimeters to a canvas Y coordinate on the log
+// axis. Values are clamped into range first, so an out-of-spec reading
+// (should not happen; ultrasonic.c already rejects these into null) still
+// draws on-canvas instead of throwing on log10 of an out-of-domain value.
+function distYOf(mm, padTop, plotH) {
+  const clamped = Math.max(DIST_RANGE_MIN_MM, Math.min(DIST_RANGE_MAX_MM, mm));
+  const frac = (Math.log10(clamped) - DIST_LOG_MIN) / (DIST_LOG_MAX - DIST_LOG_MIN);
+  return padTop + plotH * (1 - frac);
+}
+
+function drawDistGraph() {
+  const cssWidth = distCanvas.getBoundingClientRect().width;
+  const cssHeight = 160;
+  distCtx.clearRect(0, 0, cssWidth, cssHeight);
+
+  const style = getComputedStyle(document.documentElement);
+  const grid = style.getPropertyValue('--grid').trim();
+  const seriesColor = style.getPropertyValue('--series-1').trim();
+  const seriesFill = style.getPropertyValue('--series-1-fill').trim();
+  const muted = style.getPropertyValue('--text-muted').trim();
+  const nullBand = style.getPropertyValue('--baseline').trim();
+
+  const padTop = 10, padBottom = 20, padLeft = 44;
+  const plotH = cssHeight - padTop - padBottom;
+  const plotW = cssWidth - padLeft;
+  const yOf = (mm) => distYOf(mm, padTop, plotH);
+
+  // Log-scale horizontal gridlines, labeled.
+  distCtx.strokeStyle = grid;
+  distCtx.lineWidth = 1;
+  distCtx.fillStyle = muted;
+  distCtx.font = '11px system-ui, sans-serif';
+  DIST_GRIDLINES_MM.forEach((mm) => {
+    const y = yOf(mm);
+    distCtx.beginPath(); distCtx.moveTo(padLeft, y); distCtx.lineTo(cssWidth, y); distCtx.stroke();
+    const label = mm >= 1000 ? (mm / 1000) + 'm' : mm + 'mm';
+    distCtx.fillText(label, 2, y + 4);
+  });
+
+  if (!state.distStreaming) {
+    distCtx.fillStyle = muted;
+    distCtx.fillText('dist0 streaming is off — check "Also stream dist0" above', padLeft + 8, cssHeight / 2);
+    return;
+  }
+
+  const rightUs = distCurrentRightEdgeUs();
+  if (rightUs === null || distSamples.length === 0) {
+    distCtx.fillStyle = muted;
+    distCtx.fillText('waiting for samples…', padLeft + plotW / 2 - 50, cssHeight / 2);
+    return;
+  }
+
+  const windowUs = state.windowSec * 1e6;
+  const leftUs = rightUs - windowUs;
+  const xOf = (tUs) => padLeft + ((tUs - leftUs) / windowUs) * plotW;
+
+  distCtx.strokeStyle = grid;
+  const firstTickS = Math.ceil(leftUs / 1e6);
+  const lastTickS = Math.floor(rightUs / 1e6);
+  for (let s = firstTickS; s <= lastTickS; s++) {
+    const x = xOf(s * 1e6);
+    distCtx.beginPath(); distCtx.moveTo(x, padTop); distCtx.lineTo(x, cssHeight - padBottom); distCtx.stroke();
+  }
+
+  let startIdx = 0;
+  while (startIdx < distSamples.length - 1 && distSamples[startIdx + 1].tUs < leftUs) startIdx++;
+
+  // Shade "no reading" spans first, so the line draws on top.
+  distCtx.fillStyle = nullBand;
+  let bandStartX = null;
+  for (let i = startIdx; i < distSamples.length; i++) {
+    const s = distSamples[i];
+    const x = Math.max(padLeft, Math.min(cssWidth, xOf(s.tUs)));
+    if (!s.valid && bandStartX === null) bandStartX = x;
+    if (s.valid && bandStartX !== null) {
+      distCtx.globalAlpha = 0.35;
+      distCtx.fillRect(bandStartX, padTop, x - bandStartX, plotH);
+      distCtx.globalAlpha = 1;
+      bandStartX = null;
+    }
+  }
+  const rightX = xOf(rightUs);
+  if (bandStartX !== null) {
+    distCtx.globalAlpha = 0.35;
+    distCtx.fillRect(bandStartX, padTop, rightX - bandStartX, plotH);
+    distCtx.globalAlpha = 1;
+  }
+
+  // Line + area fill, broken at null readings.
+  distCtx.lineWidth = 2;
+  distCtx.strokeStyle = seriesColor;
+  distCtx.lineJoin = 'round';
+  distCtx.lineCap = 'round';
+
+  let path = [];
+  const flushPath = () => {
+    if (path.length < 2) { path = []; return; }
+    distCtx.beginPath();
+    distCtx.moveTo(path[0][0], path[0][1]);
+    for (let i = 1; i < path.length; i++) distCtx.lineTo(path[i][0], path[i][1]);
+    distCtx.stroke();
+    distCtx.lineTo(path[path.length - 1][0], padTop + plotH);
+    distCtx.lineTo(path[0][0], padTop + plotH);
+    distCtx.closePath();
+    distCtx.fillStyle = seriesFill;
+    distCtx.fill();
+    path = [];
+  };
+
+  for (let i = startIdx; i < distSamples.length; i++) {
+    const s = distSamples[i];
+    const x = Math.max(padLeft, Math.min(cssWidth, xOf(s.tUs)));
+    if (!s.valid) {
+      flushPath();
+      continue;
+    }
+    path.push([x, yOf(s.mm)]);
+  }
+  const last = distSamples[distSamples.length - 1];
+  if (path.length && last.valid) path.push([rightX, path[path.length - 1][1]]);
+  flushPath();
+
+  // DROP flag ticks.
+  distCtx.fillStyle = style.getPropertyValue('--warning').trim();
+  for (let i = startIdx; i < distSamples.length; i++) {
+    if (distSamples[i].flags & 1) {
+      const x = xOf(distSamples[i].tUs);
+      distCtx.fillRect(x - 1, padTop, 2, 6);
+    }
+  }
+
+  // Live dot at the right edge.
+  if (last && last.valid) {
+    distCtx.beginPath();
+    distCtx.arc(rightX, yOf(last.mm), 4, 0, Math.PI * 2);
+    distCtx.fillStyle = seriesColor;
+    distCtx.fill();
+  }
+
+  if (last && (rightUs - last.tUs) > FIXED_PERIOD_US * 3) {
+    distCtx.fillStyle = muted;
+    distCtx.fillText('no recent samples', cssWidth - 120, padTop + 12);
+  }
+}
 
 function updateReadout() {
   const badge = document.getElementById('stateBadge');
@@ -1033,6 +1306,79 @@ function updateReadout() {
   document.getElementById('statRate').textContent = state.stats.ratePerSec;
   document.getElementById('statDrops').textContent = state.stats.dropsSeen;
   document.getElementById('statPresses').textContent = state.stats.pressCount;
+}
+
+function fmtMm(mm) {
+  return mm >= 1000 ? (mm / 1000).toFixed(2) + ' m' : Math.round(mm) + ' mm';
+}
+
+function updateDistReadout() {
+  const live = document.getElementById('distLiveValue');
+  if (!state.distStreaming) {
+    live.textContent = '—';
+    live.className = 'live-value no-reading';
+  } else if (state.distLast.mm === null && !state.distLast.valid && state.distStats.framesRx === 0) {
+    live.textContent = 'waiting for samples…';
+    live.className = 'live-value no-reading';
+  } else if (!state.distLast.valid) {
+    live.textContent = 'no reading';
+    live.className = 'live-value no-reading';
+  } else {
+    live.textContent = fmtMm(state.distLast.mm) + ' (' + state.distLast.mm + ' mm)';
+    live.className = 'live-value';
+  }
+  document.getElementById('statDistFrames').textContent = state.distStats.framesRx;
+  document.getElementById('statDistNulls').textContent = state.distStats.nullsSeen;
+}
+
+// One checkbox per channel, both wired to the same logic: checking it
+// subscribes that channel and starts the device streaming if nothing was
+// streaming yet; unchecking it unsubscribes, and stops the device if that
+// was the last subscribed channel. Checking both streams both together.
+async function setChannelStreaming(channel, on) {
+  if (!link || state.conn !== 'connected') return;
+  const checkboxId = channel === 'btn0' ? 'btn0StreamCheck' : 'distStreamCheck';
+  try {
+    await link.send(on ? 'SUB' : 'UNSUB', channel);
+    if (channel === 'btn0') state.btn0Streaming = on; else state.distStreaming = on;
+
+    const anyOn = state.btn0Streaming || state.distStreaming;
+    if (anyOn && !state.streaming) {
+      await link.send('START');
+      state.streaming = true;
+    } else if (!anyOn && state.streaming) {
+      await link.send('STOP');
+      state.streaming = false;
+    }
+
+    if (channel === 'btn0') {
+      samples.length = 0;
+      anchorDevUs = null;
+      anchorHostMs = null;
+      state.btnNow = null;
+    } else {
+      state.distLast = { mm: null, valid: false };
+      distSamples.length = 0;
+      distAnchorDevUs = null;
+      distAnchorHostMs = null;
+    }
+    logLine('info', channel + ' streaming ' + (on ? 'enabled' : 'disabled'));
+  } catch (e) {
+    logLine('err', (on ? 'SUB' : 'UNSUB') + ' ' + channel + ' failed: ' + e.message);
+    document.getElementById(checkboxId).checked = channel === 'btn0' ? state.btn0Streaming : state.distStreaming;
+  }
+  if (channel === 'btn0') updateReadout(); else updateDistReadout();
+}
+
+async function pollDeviceStat() {
+  if (!link || state.conn !== 'connected') return;
+  try {
+    const resp = await link.send('STAT');
+    const [, , , crcErrors, , , rangingTimeouts] = resp.values;
+    state.statDev = { crcErrors, rangingTimeouts };
+    document.getElementById('statDevCrc').textContent = crcErrors;
+    document.getElementById('statDevTimeouts').textContent = rangingTimeouts;
+  } catch (e) { /* a missed STAT poll is not worth logging */ }
 }
 
 /* =========================================================================
@@ -1129,6 +1475,8 @@ function buildSwatches() {
     const btn = document.createElement('button');
     btn.className = 'swatch' + (sw.off ? ' off' : '');
     btn.title = sw.name;
+    btn.dataset.hue = sw.off ? '' : sw.hue;
+    btn.dataset.sat = sw.off ? '' : sw.sat;
     if (sw.off) {
       btn.textContent = '⏻';
     } else {
@@ -1151,9 +1499,23 @@ function buildSwatches() {
   });
 }
 
+// No hue slider (removed for a compact layout): the swatch row is the
+// only way to pick a hue, so the currently active one gets a border
+// instead, the way a slider thumb position would otherwise show it.
+function updateSwatchSelection() {
+  const row = document.getElementById('swatchRow');
+  for (const btn of row.children) {
+    const isOff = btn.classList.contains('off');
+    const selected = isOff
+      ? state.brightness === 0
+      : state.brightness > 0 && Number(btn.dataset.hue) === state.hue && Number(btn.dataset.sat) === state.sat;
+    btn.classList.toggle('selected', selected);
+  }
+}
+
 function syncLedControlsFromState() {
-  document.getElementById('hueSlider').value = state.hue;
   document.getElementById('brightnessSlider').value = Math.round(state.brightness * 100);
+  updateSwatchSelection();
   updateLedPreview();
 }
 
@@ -1190,6 +1552,8 @@ function setConnectedUi(connected) {
   document.getElementById('connectBtn').hidden = connected;
   document.getElementById('disconnectBtn').hidden = !connected;
   document.getElementById('allPortsCheck').closest('label').style.display = connected ? 'none' : '';
+  document.getElementById('btn0StreamCheck').disabled = !connected;
+  document.getElementById('distStreamCheck').disabled = !connected;
 }
 
 // The device presents two USB serial ports (CDC0 for commands and data,
@@ -1211,15 +1575,21 @@ async function probeGrantedPorts() {
     if (info.usbVendorId !== USB_VID || info.usbProductId !== USB_PID) continue;
 
     let opened = false;
+    let probe = null;
     try {
       await candidate.open({ baudRate: 115200, bufferSize: 4096 });
       opened = true;
-      const probe = new Link(candidate);
+      probe = new Link(candidate);
       probe._attach();
       await probe.send('PING');
       return probe; // this one answered — use it
     } catch (e) {
-      if (opened) { try { await candidate.close(); } catch (_e) {} }
+      // Tear down through the Link, not candidate.close() directly: a
+      // reader/writer was attached above, and closing the raw port
+      // without releasing those first can leave it locked open for the
+      // next attempt. See the comments in Link.close().
+      if (probe) { try { await probe.close(); } catch (_e) {} }
+      else if (opened) { try { await candidate.close(); } catch (_e) {} }
       // not this one — try the next candidate
     }
   }
@@ -1287,12 +1657,16 @@ async function connect(preselectedPort) {
 
     try { await link.send('STOP'); } catch (e) { /* ESTATE just means it wasn't streaming */ }
 
-    const periodResp = await link.send('CFG', 'PERIOD_US', state.periodUs);
-    state.periodUs = periodResp.values[0];
+    await link.send('CFG', 'PERIOD_US', FIXED_PERIOD_US);
 
+    // Both channels stream by default; either checkbox can be unchecked
+    // afterward. See setChannelStreaming().
     await link.send('SUB', 'btn0');
+    await link.send('SUB', 'dist0');
     await link.send('START');
     state.streaming = true;
+    state.btn0Streaming = true;
+    state.distStreaming = true;
 
     try {
       const ledResp = await link.send('GET', 'led0');
@@ -1309,6 +1683,14 @@ async function connect(preselectedPort) {
     rateWindow = [];
     state.btnNow = null;
     state.stats = { framesRx: 0, ratePerSec: 0, dropsSeen: 0, pressCount: 0, crcFail: 0, decodeFail: 0, lastErr: null };
+    state.distLast = { mm: null, valid: false };
+    state.distStats = { framesRx: 0, nullsSeen: 0 };
+    document.getElementById('btn0StreamCheck').checked = true;
+    document.getElementById('distStreamCheck').checked = true;
+    distSamples.length = 0;
+    distAnchorDevUs = null;
+    distAnchorHostMs = null;
+    document.getElementById('distFrozenNote').hidden = true;
 
     state.conn = 'connected';
     setStatusPill('connected', 'Connected');
@@ -1319,7 +1701,12 @@ async function connect(preselectedPort) {
       'fw ' + state.device.fwVersion + ' · serial ' + state.device.serial;
     document.getElementById('frozenNote').hidden = true;
     updateReadout();
+    updateDistReadout();
     startGraphLoop();
+
+    statPollTimer = setInterval(pollDeviceStat, STAT_POLL_MS);
+    pollDeviceStat();
+
     logLine('info', 'Connected to ' + state.device.name);
   } catch (e) {
     setStatusPill('error', 'Connection failed');
@@ -1358,19 +1745,29 @@ function adoptDeviceColor(rgb) {
 
 async function teardown(reason) {
   stopGraphLoop();
+  if (statPollTimer) { clearInterval(statPollTimer); statPollTimer = null; }
   if (link) {
     if (reason !== 'lost') {
       link.sendFireAndForget('STOP');
+      // connect() always re-subscribes both channels fresh next time, so
+      // this is just tidiness -- leaving the device's own subscription
+      // list stale after a clean, user-initiated disconnect -- not
+      // something a future connect() depends on.
+      link.sendFireAndForget('UNSUB', 'btn0');
+      link.sendFireAndForget('UNSUB', 'dist0');
     }
     try { await link.close(); } catch (e) {}
   }
   link = null;
   state.conn = reason === 'lost' ? 'lost' : 'idle';
   state.streaming = false;
+  state.btn0Streaming = false;
+  state.distStreaming = false;
   setConnectedUi(false);
   if (reason === 'lost') {
     setStatusPill('lost', 'Disconnected');
     document.getElementById('frozenNote').hidden = false;
+    document.getElementById('distFrozenNote').hidden = false;
     logLine('err', 'Device disconnected');
   } else {
     setStatusPill('', 'Not connected');
@@ -1397,33 +1794,16 @@ function capabilityMessage() {
 
 document.getElementById('connectBtn').addEventListener('click', () => connect());
 document.getElementById('disconnectBtn').addEventListener('click', () => teardown('user'));
+document.getElementById('btn0StreamCheck').addEventListener('change', (e) => setChannelStreaming('btn0', e.target.checked));
+document.getElementById('distStreamCheck').addEventListener('change', (e) => setChannelStreaming('dist0', e.target.checked));
 
-document.getElementById('hueSlider').addEventListener('input', (e) => {
-  state.hue = Number(e.target.value);
-  requestLedUpdate();
-});
 document.getElementById('brightnessSlider').addEventListener('input', (e) => {
   state.brightness = Number(e.target.value) / 100;
+  updateSwatchSelection();
   requestLedUpdate();
 });
 document.getElementById('windowSelect').addEventListener('change', (e) => {
   state.windowSec = Number(e.target.value);
-  savePrefs();
-});
-document.getElementById('periodSelect').addEventListener('change', async (e) => {
-  const wanted = Number(e.target.value);
-  if (link && state.conn === 'connected') {
-    try {
-      const resp = await link.send('CFG', 'PERIOD_US', wanted);
-      state.periodUs = resp.values[0];
-      logLine('info', 'Sample period set to ' + state.periodUs + ' µs');
-    } catch (err) {
-      logLine('err', 'CFG PERIOD_US failed: ' + err.message);
-      e.target.value = state.periodUs;
-    }
-  } else {
-    state.periodUs = wanted;
-  }
   savePrefs();
 });
 document.getElementById('verboseCheck').addEventListener('change', (e) => {
@@ -1443,9 +1823,10 @@ function boot() {
   buildSwatches();
   syncLedControlsFromState();
   document.getElementById('windowSelect').value = String(state.windowSec);
-  document.getElementById('periodSelect').value = String(state.periodUs);
   resizeCanvas();
+  resizeDistCanvas();
   drawGraph();
+  drawDistGraph();
 
   const results = runSelfTest();
   const failed = results.filter(r => !r.pass);
@@ -1488,6 +1869,8 @@ class MockSerialPort {
     this._timer = null;
     this._fault = mockFault();
     this._faultOnce = { crc: false, drop: false };
+    this._subs = [];
+    this._stats = { framesRx: 0, framesTx: 0, crcErrors: 0, samplesDropped: 0, logLinesDropped: 0, rangingTimeouts: 0 };
   }
 
   async open() {
@@ -1503,6 +1886,7 @@ class MockSerialPort {
       getWriter() {
         return {
           async write(bytes) { self._handleIncoming(bytes); },
+          async close() {},
           releaseLock() {},
         };
       },
@@ -1519,7 +1903,14 @@ class MockSerialPort {
               self._outResolvers.push(resolve);
             });
           },
-          async cancel() {},
+          // A real ReadableStreamDefaultReader.cancel() causes any
+          // pending read() to resolve with done:true. Link.close() waits
+          // for exactly that (via _readLoopDone) before releasing the
+          // lock; a no-op cancel() here would hang that wait forever.
+          async cancel() {
+            if (self._outResolvers.length) self._outResolvers.shift()({ value: undefined, done: true });
+            else self._outQueue.push(undefined);
+          },
           releaseLock() {},
         };
       },
@@ -1548,6 +1939,7 @@ class MockSerialPort {
     const wire = new Uint8Array(encoded.length + 1);
     wire.set(encoded, 0);
     wire[encoded.length] = 0x00;
+    this._stats.framesTx++;
     this._push(wire);
   }
 
@@ -1559,6 +1951,7 @@ class MockSerialPort {
       if (acc[i] !== 0x00) continue;
       const wire = acc.slice(start, i);
       start = i + 1;
+      this._stats.framesRx++;
       try {
         const framed = cobsDecode(wire);
         const payload = framed.slice(0, framed.length - 2);
@@ -1566,6 +1959,16 @@ class MockSerialPort {
         this._handleCommand(item);
       } catch (e) { /* malformed: real device would silently resync */ }
     }
+  }
+
+  _currentDistanceMm(nowMs) {
+    // A slow triangle wave between 100mm and 2800mm, plus an out-of-range
+    // window near the peak of every third cycle, to exercise null.
+    const cyclePos = (nowMs / 6000) % 1;
+    const mm = 100 + Math.abs(((cyclePos * 2) % 2) - 1) * 2700;
+    const cycleIndex = Math.floor(nowMs / 6000);
+    if (cycleIndex % 3 === 2 && cyclePos > 0.4 && cyclePos < 0.6) return null;
+    return Math.round(mm);
   }
 
   _handleCommand(item) {
@@ -1578,6 +1981,10 @@ class MockSerialPort {
     switch (verb) {
       case 'PING': return ok();
       case 'ID': return ok('M5Atom-Serial-Switch-Sensor (mock)', '0.1', 'MOCKSERIAL01');
+      case 'STAT':
+        return ok(Math.round(performance.now() - this._t0) * 1000, this._stats.framesRx,
+          this._stats.framesTx, this._stats.crcErrors, this._stats.samplesDropped,
+          this._stats.logLinesDropped, this._stats.rangingTimeouts);
       case 'STOP':
         if (!this._streaming) return err('ESTATE');
         this._streaming = false; return ok();
@@ -1587,12 +1994,25 @@ class MockSerialPort {
           return ok(this._periodUs);
         }
         return err('EARG');
-      case 'SUB': return ok();
+      case 'SUB':
+        if (args[0] !== 'btn0' && args[0] !== 'dist0') return err('ENOCH');
+        if (!this._subs.includes(args[0])) this._subs.push(args[0]);
+        return ok();
+      case 'UNSUB':
+        if (!this._subs.includes(args[0])) return err('ESTATE');
+        this._subs = this._subs.filter((c) => c !== args[0]);
+        return ok();
       case 'START':
         if (this._streaming) return err('ESTATE');
+        if (this._subs.length === 0) return err('ESTATE');
         this._streaming = true; return ok();
       case 'GET':
         if (args[0] === 'led0') return ok(this._lastRgb || new Uint8Array([0, 0, 0]));
+        if (args[0] === 'dist0') {
+          const mm = this._currentDistanceMm(performance.now() - this._t0);
+          if (mm === null) this._stats.rangingTimeouts++;
+          return ok(mm);
+        }
         return err('ENOCH');
       case 'SET':
         if (args[0] === 'led0') { this._lastRgb = args[1]; return ok(); }
@@ -1606,15 +2026,30 @@ class MockSerialPort {
     if (this._fault === 'stall') return; // simulate a device that stopped sampling
     if (!this._streaming) return;
     const nowMs = performance.now() - this._t0;
-    if (!this._lastSampleMs || nowMs - this._lastSampleMs >= this._periodUs / 1000) {
+    // dist0's own ranging time (simulated here as needing at least 50ms
+    // between samples, matching main/ultrasonic.c's retrigger guard) is
+    // what actually throttles the whole batch below when it's
+    // subscribed -- not a special case in this loop.
+    const effectivePeriodMs = this._subs.includes('dist0')
+      ? Math.max(this._periodUs / 1000, 50) : this._periodUs / 1000;
+    if (!this._lastSampleMs || nowMs - this._lastSampleMs >= effectivePeriodMs) {
       this._lastSampleMs = nowMs;
-      // Simulate presses: on for ~600ms every ~2.5s.
-      const cyclePos = nowMs % 2500;
-      this._pressed = cyclePos < 600;
       let flags = 0;
-      if (this._fault === 'drop' && Math.random() < 0.1) flags = 1;
-      this._mockSeq = (this._mockSeq || 0) + 1;
-      this._sendFrame([FRAME_KIND.DATA, this._mockSeq, Math.round(nowMs * 1000), 'btn0', this._pressed, flags]);
+      if (this._fault === 'drop' && Math.random() < 0.1) { flags = 1; this._stats.samplesDropped++; }
+      this._mockSeq = this._mockSeq || 0;
+      if (this._subs.includes('btn0')) {
+        // Simulate presses: on for ~600ms every ~2.5s.
+        const cyclePos = nowMs % 2500;
+        this._pressed = cyclePos < 600;
+        this._mockSeq++;
+        this._sendFrame([FRAME_KIND.DATA, this._mockSeq, Math.round(nowMs * 1000), 'btn0', this._pressed, flags]);
+      }
+      if (this._subs.includes('dist0')) {
+        const mm = this._currentDistanceMm(nowMs);
+        if (mm === null) this._stats.rangingTimeouts++;
+        this._mockSeq++;
+        this._sendFrame([FRAME_KIND.DATA, this._mockSeq, Math.round(nowMs * 1000), 'dist0', mm, flags]);
+      }
     }
   }
 

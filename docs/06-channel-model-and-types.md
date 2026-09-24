@@ -91,6 +91,20 @@ A `flags` value of `0` means no bit is set. A `flags` value of `1` means only `D
 | `btn0_us` | `uint` | `RO` | Timestamp, in microseconds since startup, of the last button state change. |
 | `led0` | `bytes`, exactly 3 bytes | `RW` | Color of the onboard RGB LED: red, green, blue, in that order. |
 | `uptime_us` | `uint` | `RO` | Time in microseconds since the device started. |
+| `dist0` | `uint`, or `null` | `RO` | Distance measured by the ultrasonic sensor, in millimeters. `null` if no echo was detected before the ranging timeout — nothing in range, or the sensor is disconnected or faulted. |
+
+### `dist0` range and timing
+
+The sensor wired to this channel reports a valid reading from about 40 mm to 3,000 mm, at a
+measuring angle under 15 degrees. See `docs/01-hardware-atoms3-lite.md` and
+`docs/KS0504-ultrasonic-sensor-datasheet.pdf`. A `GET dist0` command, or one sample sent while
+streaming, triggers one full ranging cycle: this blocks the caller for up to the ranging timeout
+defined in `main/ultrasonic.c` (see `docs/12-hardware-abstraction.md`), far longer than any other
+channel's read time in this project. `docs/05-command-reference.md` describes how this affects
+streaming when `dist0` is subscribed alongside another channel.
+
+`dist0` does not use the `SAT` flags bit for an out-of-range or failed reading. It reports `null`
+instead, the same way any channel of any type can.
 
 ## Naming a future ADC channel
 

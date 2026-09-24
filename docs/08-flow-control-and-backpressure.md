@@ -97,7 +97,11 @@ from Rule 7.
 | Case | Frame size | Sample rate | Time to fill the buffer |
 |---|---|---|---|
 | Button channel, `PERIOD_US` set to 100,000 (10 samples per second) | 20 bytes, see the worked example in `docs/04-cbor-encoding.md` | 10 per second | About 5 seconds |
+| `dist0`, its fastest practical rate, `PERIOD_US` set to 50,000 (up to 20 samples per second) | About 22 bytes, see the `dist0` worked example in `docs/04-cbor-encoding.md` | Up to 20 per second | About 2.3 seconds |
 | A future Analog-to-Digital Converter (ADC) channel at 1,000 samples per second | About 20 bytes | 1,000 per second | About 51 milliseconds |
 
 These numbers show that a host program must read CDC0 continuously while streaming is active,
-especially for a high-rate channel added in a future version.
+especially for a high-rate channel added in a future version. `dist0`'s value needs 3 bytes on
+the wire once it exceeds 255 (CBOR's 1-byte unsigned-int form), unlike `btn0`'s boolean, which is
+always 1 byte -- worth keeping in mind alongside its own timing constraints in
+`docs/12-hardware-abstraction.md`.
